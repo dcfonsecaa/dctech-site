@@ -1,306 +1,406 @@
-import React from "react";
-import {
-  ArrowRight,
-  FileText,
-  Car,
-  BarChart3,
-  CheckCircle,
-  Layers,
-  Cloud,
-  Database,
-  Headphones,
-  MessageCircle,
-  Mail,
-} from "lucide-react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
-const sistemas = [
+/* ─── Data ─── */
+const FEATURES = [
+  { icon: "bi-code-slash",       title: "Desenvolvimento sob medida",  desc: "Cada sistema é construído para o seu processo específico. Nada de plataformas prontas com limitações." },
+  { icon: "bi-phone",            title: "100% responsivo",             desc: "Funciona perfeitamente em computador, tablet e celular — sem perda de funcionalidade ou usabilidade." },
+  { icon: "bi-rocket-takeoff",   title: "Entrega rápida",              desc: "MVPs funcionais em semanas, não meses. Você começa a usar o sistema enquanto ele ainda evolui." },
+  { icon: "bi-shield-check",     title: "Seguro e confiável",          desc: "Autenticação, controle de acesso e dados protegidos. Infraestrutura moderna em nuvem." },
+  { icon: "bi-graph-up-arrow",   title: "Escalável",                   desc: "Começa pequeno e cresce com o negócio. Arquitetura preparada para volume crescente." },
+  { icon: "bi-headset",          title: "Suporte próximo",             desc: "Atendimento direto com o desenvolvedor. Sem fila de suporte ou chamados perdidos." },
+];
+
+const SYSTEMS = [
   {
-    nome: "SIPAD",
-    categoria: "Gestão documental",
-    descricao:
-      "Sistema para classificação de documentos, temporalidade, organização de acervos e apoio à gestão administrativa.",
-    icone: FileText,
+    icon: "bi-people-fill",
+    tag: "Marketplace",
+    title: "Resolve Aí",
+    desc: "Plataforma de contratação de serviços que conecta prestadores e clientes com filtros por habilidade, preço e localização. Sistema de escrow integrado.",
+    link: "#",
+    linkLabel: "Ver sistema",
   },
   {
-    nome: "Clássicos Via²R",
-    categoria: "Marketplace especializado",
-    descricao:
-      "Plataforma para curadoria, divulgação e valorização de veículos clássicos nacionais.",
-    icone: Car,
+    icon: "bi-car-front-fill",
+    tag: "Classificados",
+    title: "Clássicos Via 2R",
+    desc: "Marketplace curado de veículos clássicos e antigos. Anúncios com fotos, filtros por marca e período, e painel do anunciante completo.",
+    link: "https://classicosvia2r.com.br",
+    linkLabel: "Ver sistema",
   },
   {
-    nome: "EstokOne",
-    categoria: "ERP empresarial",
-    descricao:
-      "Controle de estoque, compras, vendas, financeiro, relatórios e indicadores para pequenas empresas.",
-    icone: BarChart3,
+    icon: "bi-layout-text-window",
+    tag: "Gestão",
+    title: "Sistema personalizado",
+    desc: "Desenvolvemos sistemas de gestão, dashboards e automações para empresas que precisam organizar processos internos de forma digital.",
+    link: "#contato",
+    linkLabel: "Solicitar proposta",
   },
 ];
 
-const diferenciais = [
-  {
-    titulo: "Sistemas sob medida",
-    texto: "Soluções adaptadas ao processo real de cada cliente.",
-    icone: Layers,
-  },
-  {
-    titulo: "100% web",
-    texto: "Acesso online, responsivo e preparado para nuvem.",
-    icone: Cloud,
-  },
-  {
-    titulo: "Dados organizados",
-    texto: "Estrutura com banco de dados, relatórios e indicadores.",
-    icone: Database,
-  },
-  {
-    titulo: "Acompanhamento",
-    texto: "Evolução contínua dos sistemas conforme a necessidade.",
-    icone: Headphones,
-  },
+const STATS = [
+  { number: "3+",   label: "Sistemas entregues" },
+  { number: "100%", label: "Projetos no prazo" },
+  { number: "Web",  label: "Sem instalação local" },
+  { number: "24h",  label: "Tempo de resposta" },
 ];
 
-export default function App() {
+const STACK = [
+  { tech: "React",     desc: "Frontend moderno e responsivo" },
+  { tech: "Java",      desc: "Backend robusto e escalável" },
+  { tech: "Supabase",  desc: "Banco de dados em tempo real" },
+  { tech: "Vercel",    desc: "Deploy contínuo e rápido" },
+];
+
+/* ─── Navbar ─── */
+function Navbar() {
+  const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", onScroll);
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const scrollTo = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    setOpen(false);
+  };
+
   return (
-    <main className="dctech-page">
-      <section className="hero">
-        <div className="container">
-          <nav className="topbar">
-            <a className="brand" href="#">
-              <div className="brand-mark">DC</div>
-              <div>
-                <strong>DCTECH</strong>
-                <span>Soluções em Sistemas</span>
-              </div>
-            </a>
+    <nav className={`dc-nav navbar navbar-expand-lg${scrolled ? " scrolled" : ""}`}>
+      <div className="container">
+        <a className="navbar-brand" href="#">
+          <div className="brand-logo">DC</div>
+          <div className="brand-text">
+            <strong>DCTECH</strong>
+            <small>Soluções em Sistemas</small>
+          </div>
+        </a>
 
-            <div className="menu">
-              <a href="#sobre">Sobre</a>
-              <a href="#sistemas">Sistemas</a>
-              <a href="#diferenciais">Diferenciais</a>
-              <a href="#contato">Contato</a>
+        <button className="navbar-toggler border-0" onClick={() => setOpen(!open)}>
+          <span style={{ color: "#fff", fontSize: 22 }}>
+            <i className={`bi ${open ? "bi-x" : "bi-list"}`}></i>
+          </span>
+        </button>
+
+        <div className={`collapse navbar-collapse${open ? " show" : ""}`}>
+          <ul className="navbar-nav mx-auto gap-1">
+            {["sobre", "sistemas", "diferenciais", "contato"].map((id) => (
+              <li className="nav-item" key={id}>
+                <button
+                  className="nav-link border-0 bg-transparent"
+                  onClick={() => scrollTo(id)}
+                  style={{ textTransform: "capitalize" }}
+                >
+                  {id.charAt(0).toUpperCase() + id.slice(1)}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button className="btn btn-demo ms-lg-3 mt-3 mt-lg-0" onClick={() => scrollTo("contato")}>
+            Solicitar demonstração
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/* ─── Hero ─── */
+function Hero() {
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
+  return (
+    <section className="dc-hero">
+      <div className="container">
+        <div className="row align-items-center g-5">
+          {/* Left */}
+          <div className="col-lg-6">
+            <div className="hero-eyebrow">
+              <i className="bi bi-circle-fill" style={{ fontSize: 10 }}></i>
+              Software sob medida
             </div>
-
-            <a href="#contato" className="nav-cta">
-              Solicitar demonstração
-            </a>
-          </nav>
-
-          <div className="row align-items-center hero-grid">
-            <div className="col-lg-6">
-              <div className="eyebrow">SOFTWARE SOB MEDIDA</div>
-
-              <h1>
-                Transformamos processos em sistemas inteligentes.
-              </h1>
-
-              <p className="hero-text">
-                Desenvolvimento de sistemas web, ERPs, plataformas digitais e
-                soluções de gestão para empresas, instituições e projetos que
-                precisam de organização, automação e tecnologia.
-              </p>
-
-              <div className="hero-buttons">
-                <a href="#contato" className="btn-main">
-                  Solicitar demonstração <ArrowRight size={18} />
-                </a>
-
-                <a href="#sistemas" className="btn-secondary">
-                  Conhecer sistemas
-                </a>
-              </div>
-
-              <div className="trust-row">
-                <span><CheckCircle size={16} /> Gestão documental</span>
-                <span><CheckCircle size={16} /> ERP</span>
-                <span><CheckCircle size={16} /> Marketplace</span>
-              </div>
+            <h1>
+              Transformamos processos em{" "}
+              <span className="accent">sistemas inteligentes.</span>
+            </h1>
+            <p className="hero-desc">
+              Desenvolvemos soluções web personalizadas que automatizam, organizam e escalam
+              o seu negócio — do planejamento à entrega em produção.
+            </p>
+            <div className="hero-actions">
+              <button className="btn-cta-primary" onClick={() => scrollTo("sistemas")}>
+                Conhecer sistemas <i className="bi bi-arrow-right"></i>
+              </button>
+              <button className="btn-cta-ghost" onClick={() => scrollTo("contato")}>
+                Falar com consultor
+              </button>
             </div>
-
-            <div className="col-lg-6">
-              <div className="dashboard-card">
-                <div className="dashboard-header">
-                  <div>
-                    <span>Vitrine DCTECH</span>
-                    <h3>Soluções digitais em operação</h3>
-                  </div>
-                  <div className="status-pill">Online</div>
+            <div className="hero-trust">
+              {["Entrega ágil", "Suporte contínuo", "100% web, sem instalação"].map((t) => (
+                <div className="trust-item" key={t}>
+                  <i className="bi bi-check-circle-fill"></i> {t}
                 </div>
+              ))}
+            </div>
+          </div>
 
-                <div className="mock-window">
-                  <div className="mock-top">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-
-                  <div className="mock-content">
-                    <div className="metric-card large">
-                      <small>Sistemas próprios</small>
-                      <strong>3</strong>
-                    </div>
-
-                    <div className="metric-card">
-                      <small>Ambiente</small>
-                      <strong>Web</strong>
-                    </div>
-
-                    <div className="metric-card">
-                      <small>Foco</small>
-                      <strong>Gestão</strong>
-                    </div>
-                  </div>
-
-                  <div className="system-list">
-                    {sistemas.map((item) => {
-                      const Icone = item.icone;
-                      return (
-                        <div className="system-mini" key={item.nome}>
-                          <div className="mini-icon">
-                            <Icone size={20} />
-                          </div>
-                          <div>
-                            <strong>{item.nome}</strong>
-                            <span>{item.categoria}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+          {/* Right: Dashboard */}
+          <div className="col-lg-6">
+            <div className="dashboard-panel">
+              <div className="panel-header">
+                <div className="panel-header-text">
+                  <small>Vitrine DCTECH</small>
+                  <strong>Soluções em operação</strong>
                 </div>
+                <span className="badge-online">● Online</span>
+              </div>
+              <div className="mock-screen">
+                <div className="mock-dots">
+                  <span /><span /><span />
+                </div>
+                <div className="metric-row">
+                  <div className="metric-box"><small>Sistemas ativos</small><strong>3</strong></div>
+                  <div className="metric-box"><small>Ambiente</small><strong>Web</strong></div>
+                  <div className="metric-box highlight"><small>Foco</small><strong>Gestão</strong></div>
+                </div>
+                {[
+                  { icon: "bi-cart3",          name: "Marketplace de serviços",   sub: "Conexão prestador ↔ cliente" },
+                  { icon: "bi-car-front",       name: "Classificados automotivos", sub: "Veículos clássicos e antigos" },
+                  { icon: "bi-bar-chart-line",  name: "Sistema de gestão",         sub: "Dashboard e relatórios" },
+                ].map((s) => (
+                  <div className="sys-item" key={s.name}>
+                    <div className="sys-icon"><i className={`bi ${s.icon}`}></i></div>
+                    <div className="sys-info">
+                      <strong>{s.name}</strong>
+                      <span>{s.sub}</span>
+                    </div>
+                    <span className="sys-badge">Ativo</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      <section id="diferenciais" className="features-section">
-        <div className="container">
-          <div className="section-heading center">
-            <span>Diferenciais</span>
-            <h2>Tecnologia com estrutura, clareza e resultado.</h2>
-            <p>
-              Cada sistema é pensado para resolver um problema real, com
-              organização visual, banco de dados e possibilidade de evolução.
+/* ─── Stats Bar ─── */
+function StatsBar() {
+  return (
+    <section className="stats-bar">
+      <div className="container">
+        <div className="row justify-content-center text-center g-4">
+          {STATS.map((s) => (
+            <div className="col-6 col-md-3" key={s.label}>
+              <div className="stat-item">
+                <span className="stat-number">{s.number}</span>
+                <span className="stat-label">{s.label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Features ─── */
+function Features() {
+  return (
+    <section className="dc-features" id="diferenciais">
+      <div className="container">
+        <div className="row mb-5">
+          <div className="col-lg-7">
+            <span className="section-label">Diferenciais</span>
+            <h2 className="section-title">Por que escolher a DCTECH?</h2>
+            <p className="section-desc">
+              Desenvolvemos cada projeto do zero, com foco total no problema do cliente —
+              sem templates genéricos, sem achismos.
             </p>
           </div>
+        </div>
+        <div className="row g-4">
+          {FEATURES.map((f) => (
+            <div className="col-md-6 col-lg-4" key={f.title}>
+              <div className="feat-card">
+                <div className="feat-icon"><i className={`bi ${f.icon}`}></i></div>
+                <h4>{f.title}</h4>
+                <p>{f.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          <div className="row g-4">
-            {diferenciais.map((item) => {
-              const Icone = item.icone;
-              return (
-                <div className="col-md-6 col-lg-3" key={item.titulo}>
-                  <div className="feature-card">
-                    <Icone size={28} />
-                    <h3>{item.titulo}</h3>
-                    <p>{item.texto}</p>
-                  </div>
+/* ─── Systems ─── */
+function Systems() {
+  return (
+    <section className="dc-systems" id="sistemas">
+      <div className="container">
+        <div className="row mb-5">
+          <div className="col-lg-7">
+            <span className="section-label">Sistemas</span>
+            <h2 className="section-title">Soluções desenvolvidas</h2>
+            <p className="section-desc">
+              Conheça os sistemas criados pela DCTECH — cada um resolvendo um problema real de negócio.
+            </p>
+          </div>
+        </div>
+        <div className="row g-4">
+          {SYSTEMS.map((s) => (
+            <div className="col-md-6 col-lg-4" key={s.title}>
+              <div className="sys-card">
+                <div className="sys-card-thumb">
+                  <i className={`bi ${s.icon}`}></i>
                 </div>
-              );
-            })}
+                <div className="sys-card-body">
+                  <div className="sys-card-tag">{s.tag}</div>
+                  <h4>{s.title}</h4>
+                  <p>{s.desc}</p>
+                  <a href={s.link} className="sys-link" target={s.link.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+                    {s.linkLabel} <i className="bi bi-arrow-right"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── About ─── */
+function About() {
+  return (
+    <section className="dc-about" id="sobre">
+      <div className="container">
+        <div className="row align-items-center g-5">
+          <div className="col-lg-5">
+            <div className="about-img-block">
+              <i className="bi bi-braces-asterisk"></i>
+            </div>
+          </div>
+          <div className="col-lg-7">
+            <span className="section-label">Sobre a DCTECH</span>
+            <h2 className="section-title">Tecnologia aplicada ao negócio real</h2>
+            <p className="section-desc" style={{ maxWidth: "100%" }}>
+              A DCTECH é uma empresa de desenvolvimento de software focada em criar sistemas web
+              que resolvem problemas reais. Trabalhamos com tecnologias modernas — React, Java,
+              Supabase e Vercel — entregando produtos prontos para produção, responsivos e escaláveis.
+            </p>
+            <p style={{ color: "var(--muted)", fontSize: 15, lineHeight: 1.7, marginTop: 12 }}>
+              Cada projeto começa com uma conversa honesta sobre o problema do cliente.
+              Não vendemos horas de reunião — entregamos software funcionando.
+            </p>
+            <div className="kpi-grid">
+              {STACK.map((s) => (
+                <div className="kpi-box" key={s.tech}>
+                  <strong>{s.tech}</strong>
+                  <span>{s.desc}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      <section id="sistemas" className="systems-section">
-        <div className="container">
-          <div className="section-heading">
-            <span>Nossos sistemas</span>
-            <h2>Uma vitrine de soluções para gestão e negócios digitais.</h2>
-          </div>
+/* ─── CTA / Contact ─── */
+function Cta() {
+  const contacts = [
+    { icon: "bi-envelope",  label: "contato@dctech.com.br",  href: "mailto:contato@dctech.com.br" },
+    { icon: "bi-whatsapp",  label: "WhatsApp direto",         href: "https://wa.me/5534999999999" },
+    { icon: "bi-linkedin",  label: "LinkedIn",                href: "https://linkedin.com/in/" },
+  ];
 
-          <div className="systems-grid">
-            {sistemas.map((item) => {
-              const Icone = item.icone;
-              return (
-                <article className="system-showcase" key={item.nome}>
-                  <div className="showcase-preview">
-                    <Icone size={46} />
-                    <div className="preview-lines">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  </div>
-
-                  <div className="showcase-content">
-                    <span>{item.categoria}</span>
-                    <h3>{item.nome}</h3>
-                    <p>{item.descricao}</p>
-                    <a href="#contato">
-                      Conhecer solução <ArrowRight size={16} />
-                    </a>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section id="sobre" className="about-section">
-        <div className="container">
+  return (
+    <section className="dc-cta" id="contato">
+      <div className="container">
+        <div className="cta-inner">
           <div className="row align-items-center g-5">
-            <div className="col-lg-6">
-              <div className="section-heading">
-                <span>Sobre a DCTECH</span>
-                <h2>Desenvolvimento de sistemas com visão prática.</h2>
-                <p>
-                  A DCTECH Soluções em Sistemas atua na criação de aplicações
-                  web para transformar ideias, rotinas administrativas e
-                  processos de gestão em ferramentas digitais profissionais.
-                </p>
-              </div>
-            </div>
-
-            <div className="col-lg-6">
-              <div className="numbers-grid">
-                <div>
-                  <strong>3</strong>
-                  <span>Sistemas em vitrine</span>
-                </div>
-                <div>
-                  <strong>100%</strong>
-                  <span>Web e responsivo</span>
-                </div>
-                <div>
-                  <strong>ERP</strong>
-                  <span>Gestão empresarial</span>
-                </div>
-                <div>
-                  <strong>Dados</strong>
-                  <span>Relatórios e organização</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="contato" className="cta-section">
-        <div className="container">
-          <div className="cta-box">
-            <div>
-              <span>Contato</span>
-              <h2>Pronto para transformar sua ideia em sistema?</h2>
-              <p>
-                Fale com a DCTECH para conhecer os sistemas, solicitar uma
-                demonstração ou iniciar um projeto personalizado.
+            <div className="col-lg-7">
+              <span className="section-label">Contato</span>
+              <h2 className="section-title">Pronto para digitalizar seu processo?</h2>
+              <p className="section-desc">
+                Conte-nos sobre o seu desafio. Em até 24 horas entramos em contato com uma
+                análise inicial gratuita e uma proposta clara.
               </p>
             </div>
-
-            <div className="cta-actions">
-              <a href="mailto:contato@dctech.com.br">
-                <Mail size={20} /> contato@dctech.com.br
-              </a>
-              <a href="#">
-                <MessageCircle size={20} /> WhatsApp Comercial
-              </a>
+            <div className="col-lg-5">
+              <div className="cta-links">
+                {contacts.map((c) => (
+                  <a key={c.label} href={c.href} className="cta-link-item" target="_blank" rel="noreferrer">
+                    <span className="cta-icon"><i className={`bi ${c.icon}`}></i></span>
+                    {c.label}
+                    <i className="bi bi-chevron-right cta-chevron"></i>
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Footer ─── */
+function Footer() {
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
+  return (
+    <footer className="dc-footer">
+      <div className="container">
+        <div className="row align-items-center justify-content-between g-3">
+          <div className="col-auto">
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="brand-logo" style={{ width: 36, height: 36, fontSize: 13 }}>DC</div>
+              <div className="brand-text">
+                <strong>DCTECH</strong>
+                <small>Soluções em Sistemas</small>
+              </div>
+            </div>
+          </div>
+          <div className="col-auto d-flex gap-4">
+            {["sobre", "sistemas", "diferenciais", "contato"].map((id) => (
+              <button key={id} className="footer-link border-0 bg-transparent" onClick={() => scrollTo(id)} style={{ textTransform: "capitalize" }}>
+                {id.charAt(0).toUpperCase() + id.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="footer-copy">
+          © {new Date().getFullYear()} DCTECH. Todos os direitos reservados. · Uberlândia/MG
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ─── App ─── */
+export default function App() {
+  return (
+    <>
+      <Navbar />
+      <Hero />
+      <StatsBar />
+      <Features />
+      <Systems />
+      <About />
+      <Cta />
+      <Footer />
+    </>
   );
 }
