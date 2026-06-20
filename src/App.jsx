@@ -376,12 +376,13 @@ function Footer() {
       <div className="container">
         <div className="row align-items-center justify-content-between g-3">
           <div className="col-auto">
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div className="brand-logo" style={{ width: 36, height: 36, fontSize: 13 }}>DC</div>
-              <div className="brand-text">
-                <strong>DCTECH</strong>
-                <small>by Denis Cezar Fonseca</small>
-              </div>
+           <div style={{ display: "flex", alignItems: "center" }}>
+  <img
+    src="/dctech-logo.png"
+    alt="DCTECH"
+    className="logo-footer"
+  />
+</div>
             </div>
           </div>
           <div className="col-auto d-flex gap-4">
