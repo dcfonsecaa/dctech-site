@@ -73,11 +73,11 @@ function Navbar() {
     <nav className={`dc-nav navbar navbar-expand-lg${scrolled ? " scrolled" : ""}`}>
       <div className="container">
         <a className="navbar-brand" href="#">
-          <div className="brand-logo">DC</div>
-          <div className="brand-text">
-            <strong>DCTECH</strong>
-            <small>by Denis Cezar Fonseca</small>
-          </div>
+          <img
+  src="/dctech-logo.png"
+  alt="DCTECH"
+  className="logo-navbar"
+/>
         </a>
 
         <button className="navbar-toggler border-0" onClick={() => setOpen(!open)}>
