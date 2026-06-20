@@ -30,7 +30,7 @@ a { text-decoration: none; }
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 1000;
-  padding: 14px 0;
+  padding: 10px 0;
   transition: background 0.3s, box-shadow 0.3s;
 }
 .dc-nav.scrolled {
@@ -77,7 +77,7 @@ a { text-decoration: none; }
 .dc-hero {
   background: linear-gradient(160deg, var(--navy) 0%, #0a2a4a 100%);
   min-height: 100vh;
-  padding-top: 110px;
+  padding-top: 130px;
   padding-bottom: 80px;
   color: #fff;
   overflow: hidden;
@@ -266,18 +266,18 @@ a { text-decoration: none; }
 
 /* ─── LOGO PNG ─── */
 .logo-navbar {
-  height: 50px;
+  height: 72px;
   width: auto;
   object-fit: contain;
 }
 
 .logo-footer {
-  height: 42px;
+  height: 56px;
   width: auto;
   object-fit: contain;
 }
 
 @media (max-width: 768px) {
-  .logo-navbar { height: 38px; }
-  .logo-footer  { height: 32px; }
+  .logo-navbar { height: 52px; }
+  .logo-footer  { height: 40px; }
 }
