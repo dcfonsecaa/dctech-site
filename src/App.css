@@ -263,3 +263,21 @@ a { text-decoration: none; }
 @media (max-width: 991.98px) {
   .about-photo { width: 200px; height: 200px; }
 }
+
+/* ─── LOGO PNG ─── */
+.logo-navbar {
+  height: 50px;
+  width: auto;
+  object-fit: contain;
+}
+
+.logo-footer {
+  height: 42px;
+  width: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 768px) {
+  .logo-navbar { height: 38px; }
+  .logo-footer  { height: 32px; }
+}
