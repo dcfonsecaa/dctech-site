@@ -72,12 +72,22 @@ function Navbar() {
   return (
     <nav className={`dc-nav navbar navbar-expand-lg${scrolled ? " scrolled" : ""}`}>
       <div className="container">
-        <a className="navbar-brand" href="#">
-          <img
-  src="/dctech-logo.png"
-  alt="DCTECH"
-  className="logo-navbar"
-/>
+        <a className="navbar-brand" href="#" style={{display:"flex",alignItems:"center",gap:14}}>
+          <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="hexGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#0057FF"/>
+                <stop offset="100%" stopColor="#0a2540"/>
+              </linearGradient>
+            </defs>
+            <polygon points="23,2 40,11 40,29 23,38 6,29 6,11" fill="url(#hexGrad)"/>
+            <text x="23" y="26" textAnchor="middle" fontFamily="Inter,sans-serif" fontSize="14" fontWeight="900" fill="white">DC</text>
+            <circle cx="40" cy="6" r="5" fill="#22C55E"/>
+          </svg>
+          <div className="brand-text">
+            <strong>DCTECH</strong>
+            <small>by Denis Cezar Fonseca</small>
+          </div>
         </a>
 
         <button className="navbar-toggler border-0" onClick={() => setOpen(!open)}>
@@ -376,13 +386,22 @@ function Footer() {
       <div className="container">
         <div className="row align-items-center justify-content-between g-3">
           <div className="col-auto">
-           <div style={{ display: "flex", alignItems: "center" }}>
-  <img
-    src="/dctech-logo.png"
-    alt="DCTECH"
-    className="logo-footer"
-  />
-</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <svg width="36" height="36" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="hexGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#0057FF"/>
+                    <stop offset="100%" stopColor="#0a2540"/>
+                  </linearGradient>
+                </defs>
+                <polygon points="23,2 40,11 40,29 23,38 6,29 6,11" fill="url(#hexGrad2)"/>
+                <text x="23" y="26" textAnchor="middle" fontFamily="Inter,sans-serif" fontSize="14" fontWeight="900" fill="white">DC</text>
+                <circle cx="40" cy="6" r="5" fill="#22C55E"/>
+              </svg>
+              <div className="brand-text">
+                <strong>DCTECH</strong>
+                <small>by Denis Cezar Fonseca</small>
+              </div>
             </div>
           </div>
           <div className="col-auto d-flex gap-4">
