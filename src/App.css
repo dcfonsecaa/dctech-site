@@ -263,37 +263,3 @@ a { text-decoration: none; }
 @media (max-width: 991.98px) {
   .about-photo { width: 200px; height: 200px; }
 }
-/* ===== LOGOS DCTECH ===== */
-
-.logo-navbar {
-  height: 60px;
-  width: auto;
-  object-fit: contain;
-}
-
-.logo-footer {
-  height: 50px;
-  width: auto;
-  object-fit: contain;
-}
-
-.hero-logo {
-  width: 420px;
-  max-width: 100%;
-  margin-bottom: 24px;
-  display: block;
-}
-
-@media (max-width: 768px) {
-  .logo-navbar {
-    height: 45px;
-  }
-
-  .hero-logo {
-    width: 280px;
-  }
-
-  .logo-footer {
-    height: 40px;
-  }
-}
