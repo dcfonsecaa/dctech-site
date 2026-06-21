@@ -300,10 +300,14 @@ function About() {
             <span className="section-label">Sobre mim</span>
             <h2 className="section-title">Denis Cezar Fonseca</h2>
             <p className="section-desc" style={{ maxWidth: "100%" }}>
-              Sou desenvolvedor full-stack baseado em Uberlândia/MG. Desenvolvo sistemas
-              web completos — desde a ideia até o produto funcionando em produção.
-              Trabalho com React, Java, Supabase e Vercel, e tenho experiência prática
-              em marketplaces, classificados e sistemas de gestão.
+              Sou desenvolvedor full-stack com foco no desenvolvimento de sistemas web personalizados, landing pages e soluções digitais sob medida para empresas e profissionais.
+
+Atuo em todas as etapas do projeto, desde o levantamento de requisitos e definição da arquitetura até o desenvolvimento, implantação e suporte da aplicação. Trabalho com tecnologias modernas como React, Java, Python, Supabase e Vercel, criando sistemas seguros, responsivos, escaláveis e orientados às necessidades de cada cliente.
+
+Além da experiência em desenvolvimento de software, possuo formação em Administração, Mestrado em Planejamento e Análise de Políticas Públicas e atualmente curso Sistemas de Informação na Universidade Federal de Uberlândia (UFU). Essa combinação de conhecimentos me permite compreender não apenas os aspectos técnicos, mas também os processos de negócio e a importância de desenvolver soluções que gerem valor e resultados.
+
+Meu compromisso é entregar projetos com qualidade, comunicação transparente e foco na solução dos desafios de cada cliente.
+
             </p>
             <p style={{ color: "var(--muted)", fontSize: 15, lineHeight: 1.7, marginTop: 12 }}>
               Cada projeto começa com uma conversa honesta sobre o seu problema.
