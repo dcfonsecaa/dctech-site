@@ -56,12 +56,22 @@ const STACK = [
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const [logoReady, setLogoReady] = useState(false);
+  const [signReady, setSignReady] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll);
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    // Logo cai após 200ms
+    const t1 = setTimeout(() => setLogoReady(true), 200);
+    // Assinatura aparece após logo pousar (900ms)
+    const t2 = setTimeout(() => setSignReady(true), 1000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
   const scrollTo = (id) => {
@@ -72,8 +82,15 @@ function Navbar() {
   return (
     <nav className={`dc-nav navbar navbar-expand-lg${scrolled ? " scrolled" : ""}`}>
       <div className="container">
-        <a className="navbar-brand" href="#">
-          <img src="/dctech-logo.png" alt="DCTECH" className="logo-navbar" />
+        <a className="navbar-brand" href="#" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+          <img
+            src="/dctech-logo.png"
+            alt="DCTECH"
+            className={`logo-navbar${logoReady ? " logo-drop" : " logo-hidden"}`}
+          />
+          <span className={`logo-signature${signReady ? " sign-visible" : ""}`}>
+            by Denis Cezar Fonseca
+          </span>
         </a>
 
         <button className="navbar-toggler border-0" onClick={() => setOpen(!open)}>
