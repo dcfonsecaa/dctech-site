@@ -376,8 +376,8 @@ function Footer() {
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <img src="/dctech-logo.png" alt="DCTECH" className="logo-footer" />
               <div className="brand-text">
-                <strong>DCTECH</strong>
-                <small>by Denis Cezar Fonseca</small>
+                <strong></strong>
+                <small></small>
               </div>
             </div>
           </div>
