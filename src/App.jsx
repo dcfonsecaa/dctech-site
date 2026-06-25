@@ -328,8 +328,8 @@ Sou graduado em Administração, Mestre em Planejamento e Análise de Políticas
 /* ─── CTA / Contact ─── */
 function Cta() {
   const contacts = [
-    { icon: "bi-whatsapp", label: "Chamar no WhatsApp",       href: "https://wa.me/5534999999999" },
-    { icon: "bi-envelope",  label: "denis@dctech.com.br",      href: "mailto:denis@dctech.com.br" },
+    { icon: "bi-whatsapp", label: "Chamar no WhatsApp",       href: "https://wa.me/553496459701" },
+    { icon: "bi-envelope",  label: "denis@dctech.com.br",      href: "mailto:denis-fonseca@hotmail.com" },
     { icon: "bi-linkedin",  label: "LinkedIn",                 href: "https://linkedin.com/in/denis-fonseca" },
   ];
 
