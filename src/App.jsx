@@ -17,11 +17,11 @@ const FEATURES = [
 
 const SYSTEMS = [
   {
-    icon: "bi-people-fill",
-    tag: "Marketplace",
-    title: "Resolve Aí",
-    desc: "Plataforma de contratação de serviços que conecta prestadores e clientes com filtros por habilidade, preço e localização. Sistema de escrow integrado.",
-    link: "#",
+    icon: "bi-robot",
+    tag: "IA Generativa",
+    title: "Claud.ia",
+    desc: "Assistente de programação com IA voltado para o público brasileiro. Gera código, explica erros e guia projetos inteiros em português — do iniciante ao desenvolvedor experiente.",
+    link: "https://claudia-two-zeta.vercel.app/",
     linkLabel: "Ver projeto",
   },
   {
@@ -33,17 +33,17 @@ const SYSTEMS = [
     linkLabel: "Ver projeto",
   },
   {
-    icon: "bi-layout-text-window",
-    tag: "Gestão",
-    title: "Seu projeto aqui",
-    desc: "Desenvolvo sistemas de gestão, dashboards e automações para negócios que precisam organizar processos internos de forma digital.",
-    link: "#contato",
-    linkLabel: "Vamos conversar?",
+    icon: "bi-people-fill",
+    tag: "Marketplace",
+    title: "Resolve Aí",
+    desc: "Plataforma que conecta quem tem um problema a quem tem tempo e habilidade para resolver. Filtros por habilidade, localização e sistema de contratação integrado.",
+    link: "https://resolve-ai-mu.vercel.app/",
+    linkLabel: "Ver projeto",
   },
 ];
 
 const STATS = [
-  { number: "2+",    label: "Projetos entregues" },
+  { number: "3+",    label: "Projetos entregues" },
   { number: "React", label: "Frontend" },
   { number: "Java",  label: "Backend" },
   { number: "24h",   label: "Tempo de resposta" },
@@ -191,14 +191,14 @@ function Hero() {
                   <span /><span /><span />
                 </div>
                 <div className="metric-row">
-                  <div className="metric-box"><small>Projetos</small><strong>2+</strong></div>
+                  <div className="metric-box"><small>Projetos</small><strong>3+</strong></div>
                   <div className="metric-box"><small>Ambiente</small><strong>Web</strong></div>
                   <div className="metric-box highlight"><small>Status</small><strong>Ativo</strong></div>
                 </div>
                 {[
-                  { icon: "bi-cart3",          name: "Resolve Aí",       sub: "Marketplace de serviços" },
-                  { icon: "bi-car-front",      name: "Clássicos Via 2R", sub: "Classificados automotivos" },
-                  { icon: "bi-bar-chart-line", name: "Próximo projeto",  sub: "Pode ser o seu" },
+                  { icon: "bi-robot",      name: "Claud.ia",         sub: "Assistente IA para devs" },
+                  { icon: "bi-car-front",  name: "Clássicos Via 2R", sub: "Classificados automotivos" },
+                  { icon: "bi-people",     name: "Resolve Aí",       sub: "Marketplace de serviços" },
                 ].map((s) => (
                   <div className="sys-item" key={s.name}>
                     <div className="sys-icon"><i className={`bi ${s.icon}`}></i></div>
@@ -206,9 +206,7 @@ function Hero() {
                       <strong>{s.name}</strong>
                       <span>{s.sub}</span>
                     </div>
-                    <span className="sys-badge">
-                      {s.name === "Próximo projeto" ? "Em breve" : "Ativo"}
-                    </span>
+                    <span className="sys-badge">Ativo</span>
                   </div>
                 ))}
               </div>
