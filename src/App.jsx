@@ -1,5 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+gsap.registerPlugin(ScrollTrigger);
 
 /* ─── Data ─── */
 const FEATURES = [
@@ -39,10 +43,10 @@ const SYSTEMS = [
 ];
 
 const STATS = [
-  { number: "2+",   label: "Projetos entregues" },
+  { number: "2+",    label: "Projetos entregues" },
   { number: "React", label: "Frontend" },
   { number: "Java",  label: "Backend" },
-  { number: "24h",  label: "Tempo de resposta" },
+  { number: "24h",   label: "Tempo de resposta" },
 ];
 
 const STACK = [
@@ -108,13 +112,40 @@ function Navbar() {
 /* ─── Hero ─── */
 function Hero() {
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+  const leftRef  = useRef(null);
+  const rightRef = useRef(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      // Lado esquerdo: eyebrow → h1 → desc → actions → trust (stagger)
+      gsap.from(leftRef.current.children, {
+        opacity: 0,
+        y: 40,
+        duration: 0.8,
+        stagger: 0.15,
+        ease: "power3.out",
+        delay: 0.2,
+      });
+
+      // Lado direito: painel entra da direita
+      gsap.from(rightRef.current, {
+        opacity: 0,
+        x: 60,
+        duration: 0.9,
+        ease: "power3.out",
+        delay: 0.5,
+      });
+    });
+
+    return () => ctx.revert();
+  }, []);
 
   return (
     <section className="dc-hero">
       <div className="container">
         <div className="row align-items-center g-5">
           {/* Left */}
-          <div className="col-lg-6">
+          <div className="col-lg-6" ref={leftRef}>
             <div className="hero-eyebrow">
               <i className="bi bi-circle-fill" style={{ fontSize: 10 }}></i>
               Desenvolvedor freelancer
@@ -146,7 +177,7 @@ function Hero() {
           </div>
 
           {/* Right: Dashboard */}
-          <div className="col-lg-6">
+          <div className="col-lg-6" ref={rightRef}>
             <div className="dashboard-panel">
               <div className="panel-header">
                 <div className="panel-header-text">
@@ -165,9 +196,9 @@ function Hero() {
                   <div className="metric-box highlight"><small>Status</small><strong>Ativo</strong></div>
                 </div>
                 {[
-                  { icon: "bi-cart3",         name: "Resolve Aí",          sub: "Marketplace de serviços" },
-                  { icon: "bi-car-front",     name: "Clássicos Via 2R",    sub: "Classificados automotivos" },
-                  { icon: "bi-bar-chart-line",name: "Próximo projeto",      sub: "Pode ser o seu" },
+                  { icon: "bi-cart3",          name: "Resolve Aí",       sub: "Marketplace de serviços" },
+                  { icon: "bi-car-front",      name: "Clássicos Via 2R", sub: "Classificados automotivos" },
+                  { icon: "bi-bar-chart-line", name: "Próximo projeto",  sub: "Pode ser o seu" },
                 ].map((s) => (
                   <div className="sys-item" key={s.name}>
                     <div className="sys-icon"><i className={`bi ${s.icon}`}></i></div>
@@ -191,8 +222,28 @@ function Hero() {
 
 /* ─── Stats Bar ─── */
 function StatsBar() {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from(".stat-item", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 85%",
+        },
+        opacity: 0,
+        y: 30,
+        duration: 0.6,
+        stagger: 0.12,
+        ease: "power2.out",
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className="stats-bar">
+    <section className="stats-bar" ref={ref}>
       <div className="container">
         <div className="row justify-content-center text-center g-4">
           {STATS.map((s) => (
@@ -211,10 +262,45 @@ function StatsBar() {
 
 /* ─── Features ─── */
 function Features() {
+  const ref     = useRef(null);
+  const headRef = useRef(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      // Cabeçalho da seção
+      gsap.from(headRef.current.children, {
+        scrollTrigger: {
+          trigger: headRef.current,
+          start: "top 85%",
+        },
+        opacity: 0,
+        y: 30,
+        duration: 0.7,
+        stagger: 0.1,
+        ease: "power2.out",
+      });
+
+      // Cards em stagger
+      gsap.from(".feat-card", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        y: 50,
+        duration: 0.6,
+        stagger: 0.1,
+        ease: "power2.out",
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className="dc-features" id="diferenciais">
+    <section className="dc-features" id="diferenciais" ref={ref}>
       <div className="container">
-        <div className="row mb-5">
+        <div className="row mb-5" ref={headRef}>
           <div className="col-lg-7">
             <span className="section-label">Diferenciais</span>
             <h2 className="section-title">Por que trabalhar comigo?</h2>
@@ -242,10 +328,44 @@ function Features() {
 
 /* ─── Projects ─── */
 function Projects() {
+  const ref     = useRef(null);
+  const headRef = useRef(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from(headRef.current.children, {
+        scrollTrigger: {
+          trigger: headRef.current,
+          start: "top 85%",
+        },
+        opacity: 0,
+        y: 30,
+        duration: 0.7,
+        stagger: 0.1,
+        ease: "power2.out",
+      });
+
+      gsap.from(".sys-card", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        y: 50,
+        scale: 0.97,
+        duration: 0.65,
+        stagger: 0.15,
+        ease: "power2.out",
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className="dc-systems" id="projetos">
+    <section className="dc-systems" id="projetos" ref={ref}>
       <div className="container">
-        <div className="row mb-5">
+        <div className="row mb-5" ref={headRef}>
           <div className="col-lg-7">
             <span className="section-label">Projetos</span>
             <h2 className="section-title">O que já desenvolvi</h2>
@@ -285,26 +405,59 @@ function Projects() {
 
 /* ─── About ─── */
 function About() {
+  const ref     = useRef(null);
+  const photoRef = useRef(null);
+  const textRef  = useRef(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      // Foto entra da esquerda
+      gsap.from(photoRef.current, {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        x: -60,
+        duration: 0.85,
+        ease: "power3.out",
+      });
+
+      // Texto entra da direita
+      gsap.from(textRef.current.children, {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        x: 50,
+        duration: 0.75,
+        stagger: 0.1,
+        ease: "power3.out",
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className="dc-about" id="sobre">
+    <section className="dc-about" id="sobre" ref={ref}>
       <div className="container">
         <div className="row align-items-center g-5">
-          <div className="col-lg-5 text-center">
+          <div className="col-lg-5 text-center" ref={photoRef}>
             <img
               src="/denis.jpg"
               alt="Denis Cezar Fonseca"
               className="about-photo"
             />
           </div>
-          <div className="col-lg-7">
+          <div className="col-lg-7" ref={textRef}>
             <span className="section-label">Sobre mim</span>
             <h2 className="section-title">Denis Cezar Fonseca</h2>
             <p className="section-desc" style={{ maxWidth: "100%" }}>
               Sou desenvolvedor full-stack especializado na criação de sistemas web, landing pages e soluções digitais personalizadas. Trabalho com React, Java, Python, Supabase e Vercel, desenvolvendo aplicações modernas, responsivas e escaláveis.
 
 Sou graduado em Administração, Mestre em Planejamento e Análise de Políticas Públicas e atualmente curso Sistemas de Informação na Universidade Federal de Uberlândia (UFU). Minha formação combina visão estratégica e conhecimento técnico para desenvolver soluções que geram resultados reais para empresas e instituições.
-
-
             </p>
             <p style={{ color: "var(--muted)", fontSize: 15, lineHeight: 1.7, marginTop: 12 }}>
               Cada projeto começa com uma conversa honesta sobre o seu problema.
@@ -327,14 +480,46 @@ Sou graduado em Administração, Mestre em Planejamento e Análise de Políticas
 
 /* ─── CTA / Contact ─── */
 function Cta() {
+  const ref = useRef(null);
+
   const contacts = [
-    { icon: "bi-whatsapp", label: "Chamar no WhatsApp",       href: "https://wa.me/553496459701" },
-    { icon: "bi-envelope",  label: "denis-fonseca@hotmailcom",      href: "mailto:denis-fonseca@hotmail.com" },
-    { icon: "bi-linkedin",  label: "LinkedIn",                 href: "https://www.linkedin.com/in/denis-fonseca-106384248"},
+    { icon: "bi-whatsapp", label: "Chamar no WhatsApp",  href: "https://wa.me/553496459701" },
+    { icon: "bi-envelope", label: "denis-fonseca@hotmail.com", href: "mailto:denis-fonseca@hotmail.com" },
+    { icon: "bi-linkedin", label: "LinkedIn",             href: "https://www.linkedin.com/in/denis-fonseca-106384248" },
   ];
 
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from(".cta-inner", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 85%",
+        },
+        opacity: 0,
+        y: 40,
+        duration: 0.8,
+        ease: "power2.out",
+      });
+
+      gsap.from(".cta-link-item", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        x: 30,
+        duration: 0.6,
+        stagger: 0.12,
+        ease: "power2.out",
+        delay: 0.2,
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className="dc-cta" id="contato">
+    <section className="dc-cta" id="contato" ref={ref}>
       <div className="container">
         <div className="cta-inner">
           <div className="row align-items-center g-5">
