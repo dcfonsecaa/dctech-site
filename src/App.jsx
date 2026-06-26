@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Analytics } from "@vercel/analytics/react";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -689,6 +690,7 @@ export default function App() {
       <About />
       <Cta />
       <Footer />
+      <Analytics />
     </>
   );
 }
