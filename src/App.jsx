@@ -29,7 +29,7 @@ const SYSTEMS = [
     tag: "Classificados",
     title: "Clássicos Via 2R",
     desc: "Marketplace curado de veículos clássicos e antigos. Anúncios com fotos, filtros por marca e período, e painel do anunciante completo.",
-    link: "",
+    link: "https://www.classicosvia2r.com.br",
     linkLabellink: "https://www.classicosvia2r.com.br", "Ver projeto",
   },
   {
