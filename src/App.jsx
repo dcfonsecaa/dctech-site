@@ -1,5 +1,4 @@
 
-# Arquivo 1: App.jsx (com DcBugRun importado e inserido)
 app_jsx = '''import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { gsap } from "gsap";
