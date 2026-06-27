@@ -1,5 +1,4 @@
 
-# Arquivo 3: DcBugRun.jsx (componente na pasta components)
 dcbug_jsx = '''import { useEffect, useRef, useState, useCallback } from "react";
 
 /* ─── DC Bug Run Game Component ─── */
