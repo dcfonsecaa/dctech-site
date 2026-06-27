@@ -1,4 +1,6 @@
-/* ─── Tokens ─── */
+
+# Arquivo 2: App.css (original + CSS do jogo no final)
+app_css = '''/* ─── Tokens ─── */
 :root {
   --navy:      #071527;
   --navy2:     #0a2540;
@@ -281,3 +283,311 @@ a { text-decoration: none; }
   .logo-navbar { height: 65px; }
   .logo-footer  { height: 40px; }
 }
+
+/* ═══════════════════════════════════════════════════════
+   DC BUG RUN — JOGUINHO INTERATIVO
+   ═══════════════════════════════════════════════════════ */
+
+.dc-bugrun {
+  padding: 96px 0;
+  background: var(--navy);
+}
+
+.bugrun-card {
+  max-width: 720px;
+  margin: 0 auto;
+  background: linear-gradient(180deg, #0f1729 0%, #1a2342 100%);
+  border-radius: var(--radius);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  overflow: hidden;
+  position: relative;
+}
+
+.bugrun-header {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.15);
+}
+
+.bugrun-title {
+  color: #60a5fa;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bugrun-score {
+  color: #34d399;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.bugrun-rec {
+  color: #94a3b8;
+  font-size: 11px;
+  margin-left: 12px;
+}
+
+.bugrun-canvas {
+  display: block;
+  width: 100%;
+  height: 200px;
+  cursor: pointer;
+  background: linear-gradient(180deg, #0f1729 0%, #162033 100%);
+}
+
+/* Overlay */
+.bugrun-overlay {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(10, 14, 26, 0.92);
+  backdrop-filter: blur(4px);
+  padding: 20px;
+  z-index: 10;
+}
+
+.bugrun-overlay-title {
+  color: #60a5fa;
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.bugrun-overlay-sub {
+  color: #94a3b8;
+  font-size: 13px;
+  margin-bottom: 20px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.bugrun-overlay-sub strong {
+  color: #34d399;
+}
+
+.bugrun-newrec {
+  color: #fbbf24;
+}
+
+.bugrun-namearea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bugrun-namearea label {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.bugrun-namearea input {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: #f1f5f9;
+  font-size: 14px;
+  width: 220px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.bugrun-namearea input:focus {
+  border-color: #3b82f6;
+}
+
+.bugrun-namearea input::placeholder {
+  color: #64748b;
+}
+
+.bugrun-btn {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.bugrun-btn:hover {
+  background: #0046d5;
+  transform: translateY(-1px);
+}
+
+.bugrun-hint {
+  color: #64748b;
+  font-size: 11px;
+  margin-top: 12px;
+}
+
+/* Quote */
+.bugrun-quotebar {
+  padding: 10px 24px;
+  background: rgba(37, 99, 235, 0.08);
+  border-top: 1px solid rgba(59, 130, 246, 0.1);
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bugrun-quote {
+  color: #60a5fa;
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+.bugrun-quote.visible {
+  opacity: 1;
+}
+
+/* Ranking */
+.bugrun-ranking {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.bugrun-ranking-title {
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.bugrun-ranking-list {
+  list-style: none;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.bugrun-ranking-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.bugrun-ranking-item:hover {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.bugrun-ranking-item.rank-1 {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.bugrun-ranking-item.rank-2 {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.bugrun-ranking-item.rank-3 {
+  background: rgba(180, 83, 9, 0.08);
+  border: 1px solid rgba(180, 83, 9, 0.15);
+}
+
+.bugrun-rank-pos {
+  width: 28px;
+  text-align: center;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.bugrun-rank-pos.pos-1 { color: #fbbf24; }
+.bugrun-rank-pos.pos-2 { color: #94a3b8; }
+.bugrun-rank-pos.pos-3 { color: #d97706; }
+
+.bugrun-rank-name {
+  flex: 1;
+  color: #e2e8f0;
+  padding-left: 8px;
+}
+
+.bugrun-rank-score {
+  color: #34d399;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.bugrun-ranking-empty {
+  color: #475569;
+  font-size: 12px;
+  text-align: center;
+  padding: 12px;
+  font-style: italic;
+}
+
+/* Footer */
+.bugrun-footer {
+  padding: 8px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.bugrun-footer span {
+  color: #475569;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+
+.bugrun-footer a {
+  color: #3b82f6;
+  font-size: 10px;
+  text-decoration: none;
+  transition: text-decoration 0.2s;
+}
+
+.bugrun-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .bugrun-canvas { height: 160px; }
+  .bugrun-overlay-title { font-size: 18px; }
+  .bugrun-overlay-sub { font-size: 12px; }
+  .bugrun-ranking { padding: 12px 16px; }
+  .bugrun-ranking-item { font-size: 12px; padding: 6px 8px; }
+}
+'''
+
+with open('/mnt/agents/output/App.css', 'w', encoding='utf-8') as f:
+    f.write(app_css)
+
+print("✅ App.css salvo")
+print(f"Tamanho: {len(app_css)} chars")
