@@ -3,7 +3,6 @@ import "./App.css";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Analytics } from "@vercel/analytics/react";
-import DcBugRun from "./components/DcBugRun";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -326,3 +325,372 @@ function StatsBar() {
         opacity: 0,
         y: 30,
         duration: 0.6,
+        stagger: 0.12,
+        ease: "power2.out",
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section className="stats-bar" ref={ref}>
+      <div className="container">
+        <div className="row justify-content-center text-center g-4">
+          {STATS.map((s) => (
+            <div className="col-6 col-md-3" key={s.label}>
+              <div className="stat-item">
+                <span className="stat-number">{s.number}</span>
+                <span className="stat-label">{s.label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Features ─── */
+function Features() {
+  const ref     = useRef(null);
+  const headRef = useRef(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      // Cabeçalho da seção
+      gsap.from(headRef.current.children, {
+        scrollTrigger: {
+          trigger: headRef.current,
+          start: "top 85%",
+        },
+        opacity: 0,
+        y: 30,
+        duration: 0.7,
+        stagger: 0.1,
+        ease: "power2.out",
+      });
+
+      // Cards em stagger
+      gsap.from(".feat-card", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        y: 50,
+        duration: 0.6,
+        stagger: 0.1,
+        ease: "power2.out",
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section className="dc-features" id="diferenciais" ref={ref}>
+      <div className="container">
+        <div className="row mb-5" ref={headRef}>
+          <div className="col-lg-7">
+            <span className="section-label">Diferenciais</span>
+            <h2 className="section-title">Por que trabalhar comigo?</h2>
+            <p className="section-desc">
+              Cada projeto é tratado como único. Falo direto com o cliente,
+              entendo o problema real e entrego software que resolve — sem enrolação.
+            </p>
+          </div>
+        </div>
+        <div className="row g-4">
+          {FEATURES.map((f) => (
+            <div className="col-md-6 col-lg-4" key={f.title}>
+              <div className="feat-card">
+                <div className="feat-icon"><i className={`bi ${f.icon}`}></i></div>
+                <h4>{f.title}</h4>
+                <p>{f.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Projects ─── */
+function Projects() {
+  const ref     = useRef(null);
+  const headRef = useRef(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from(headRef.current.children, {
+        scrollTrigger: {
+          trigger: headRef.current,
+          start: "top 85%",
+        },
+        opacity: 0,
+        y: 30,
+        duration: 0.7,
+        stagger: 0.1,
+        ease: "power2.out",
+      });
+
+      gsap.from(".sys-card", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        y: 50,
+        scale: 0.97,
+        duration: 0.65,
+        stagger: 0.15,
+        ease: "power2.out",
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section className="dc-systems" id="projetos" ref={ref}>
+      <div className="container">
+        <div className="row mb-5" ref={headRef}>
+          <div className="col-lg-7">
+            <span className="section-label">Projetos</span>
+            <h2 className="section-title">O que já desenvolvi</h2>
+            <p className="section-desc">
+              Projetos reais, construídos do zero por mim — do banco de dados ao deploy.
+            </p>
+          </div>
+        </div>
+        <div className="row g-4">
+          {SYSTEMS.map((s) => (
+            <div className="col-md-6 col-lg-4" key={s.title}>
+              <div className="sys-card">
+                <div className="sys-card-thumb">
+                  <i className={`bi ${s.icon}`}></i>
+                </div>
+                <div className="sys-card-body">
+                  <div className="sys-card-tag">{s.tag}</div>
+                  <h4>{s.title}</h4>
+                  <p>{s.desc}</p>
+                  <a
+                    href={s.link}
+                    className="sys-link"
+                    target={s.link.startsWith("http") ? "_blank" : undefined}
+                    rel="noreferrer"
+                  >
+                    {s.linkLabel} <i className="bi bi-arrow-right"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── About ─── */
+function About() {
+  const ref     = useRef(null);
+  const photoRef = useRef(null);
+  const textRef  = useRef(null);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      // Foto entra da esquerda
+      gsap.from(photoRef.current, {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        x: -60,
+        duration: 0.85,
+        ease: "power3.out",
+      });
+
+      // Texto entra da direita
+      gsap.from(textRef.current.children, {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        x: 50,
+        duration: 0.75,
+        stagger: 0.1,
+        ease: "power3.out",
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section className="dc-about" id="sobre" ref={ref}>
+      <div className="container">
+        <div className="row align-items-center g-5">
+          <div className="col-lg-5 text-center" ref={photoRef}>
+            <img
+              src="/denis.jpg"
+              alt="Denis Cezar Fonseca"
+              className="about-photo"
+            />
+          </div>
+          <div className="col-lg-7" ref={textRef}>
+            <span className="section-label">Sobre mim</span>
+            <h2 className="section-title">Denis Cezar Fonseca</h2>
+            <p className="section-desc" style={{ maxWidth: "100%" }}>
+              Sou desenvolvedor full-stack especializado na criação de sistemas web, landing pages e soluções digitais personalizadas. Trabalho com React, Java, Python, Supabase e Vercel, desenvolvendo aplicações modernas, responsivas e escaláveis.
+
+Sou graduado em Administração, Mestre em Planejamento e Análise de Políticas Públicas e atualmente curso Sistemas de Informação na Universidade Federal de Uberlândia (UFU). Minha formação combina visão estratégica e conhecimento técnico para desenvolver soluções que geram resultados reais para empresas e instituições.
+            </p>
+            <p style={{ color: "var(--muted)", fontSize: 15, lineHeight: 1.7, marginTop: 12 }}>
+              Cada projeto começa com uma conversa honesta sobre o seu problema.
+              Não cobro por reunião — entrego resultado.
+            </p>
+            <div className="kpi-grid">
+              {STACK.map((s) => (
+                <div className="kpi-box" key={s.tech}>
+                  <strong>{s.tech}</strong>
+                  <span>{s.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── CTA / Contact ─── */
+function Cta() {
+  const ref = useRef(null);
+
+  const contacts = [
+    { icon: "bi-whatsapp", label: "Chamar no WhatsApp",  href: "https://wa.me/553496459701" },
+    { icon: "bi-envelope", label: "denis-fonseca@hotmail.com", href: "mailto:denis-fonseca@hotmail.com" },
+    { icon: "bi-linkedin", label: "LinkedIn",             href: "https://www.linkedin.com/in/denis-fonseca-106384248" },
+  ];
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      gsap.from(".cta-inner", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 85%",
+        },
+        opacity: 0,
+        y: 40,
+        duration: 0.8,
+        ease: "power2.out",
+      });
+
+      gsap.from(".cta-link-item", {
+        scrollTrigger: {
+          trigger: ref.current,
+          start: "top 80%",
+        },
+        opacity: 0,
+        x: 30,
+        duration: 0.6,
+        stagger: 0.12,
+        ease: "power2.out",
+        delay: 0.2,
+      });
+    }, ref);
+
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <section className="dc-cta" id="contato" ref={ref}>
+      <div className="container">
+        <div className="cta-inner">
+          <div className="row align-items-center g-5">
+            <div className="col-lg-7">
+              <span className="section-label">Contato</span>
+              <h2 className="section-title">Tem um projeto em mente?</h2>
+              <p className="section-desc">
+                Me conta o que você precisa. Respondo em até 24 horas com
+                uma análise honesta e um orçamento claro — sem enrolação.
+              </p>
+            </div>
+            <div className="col-lg-5">
+              <div className="cta-links">
+                {contacts.map((c) => (
+                  <a key={c.label} href={c.href} className="cta-link-item" target="_blank" rel="noreferrer">
+                    <span className="cta-icon"><i className={`bi ${c.icon}`}></i></span>
+                    {c.label}
+                    <i className="bi bi-chevron-right cta-chevron"></i>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── Footer ─── */
+function Footer() {
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
+  return (
+    <footer className="dc-footer">
+      <div className="container">
+        <div className="row align-items-center justify-content-between g-3">
+          <div className="col-auto">
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <img src="/dctech-logo.png" alt="DCTECH" className="logo-footer" />
+              <div className="brand-text">
+                <strong></strong>
+                <small></small>
+              </div>
+            </div>
+          </div>
+          <div className="col-auto d-flex gap-4">
+            {["sobre", "projetos", "diferenciais", "contato"].map((id) => (
+              <button
+                key={id}
+                className="footer-link border-0 bg-transparent"
+                onClick={() => scrollTo(id)}
+                style={{ textTransform: "capitalize" }}
+              >
+                {id.charAt(0).toUpperCase() + id.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="footer-copy">
+          © {new Date().getFullYear()} DCTECH · Denis Cezar Fonseca · Uberlândia/MG
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ─── App ─── */
+export default function App() {
+  return (
+    <>
+      <Navbar />
+      <Hero />
+      <StatsBar />
+      <Features />
+      <Projects />
+      <About />
+      <Cta />
+      <Footer />
+      <Analytics />
+    </>
+  );
+}
