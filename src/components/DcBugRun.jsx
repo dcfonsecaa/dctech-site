@@ -1,7 +1,5 @@
+import { useEffect, useRef, useState, useCallback } from "react";
 
-dcbug_jsx = '''import { useEffect, useRef, useState, useCallback } from "react";
-
-/* ─── DC Bug Run Game Component ─── */
 export default function DcBugRun() {
   const canvasRef = useRef(null);
   const [score, setScore] = useState(0);
@@ -251,7 +249,6 @@ export default function DcBugRun() {
     }
   }, []);
 
-  // Controls
   useEffect(() => {
     const onKey = (e) => {
       if (e.code === "Space" || e.code === "ArrowUp") {
@@ -276,7 +273,6 @@ export default function DcBugRun() {
     else jump();
   }, [gameState, handleStart, jump]);
 
-  // Initial draw
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -293,7 +289,6 @@ export default function DcBugRun() {
     <section className="dc-bugrun">
       <div className="container">
         <div className="bugrun-card">
-          {/* Header */}
           <div className="bugrun-header">
             <div className="bugrun-title">
               <span>🐛</span> DC BUG RUN
@@ -304,7 +299,6 @@ export default function DcBugRun() {
             </div>
           </div>
 
-          {/* Canvas */}
           <canvas
             ref={canvasRef}
             width={720}
@@ -314,7 +308,6 @@ export default function DcBugRun() {
             onTouchStart={(e) => { e.preventDefault(); onCanvasInteract(); }}
           />
 
-          {/* Overlay */}
           {gameState !== "playing" && (
             <div className="bugrun-overlay">
               <div className="bugrun-overlay-title">
@@ -353,14 +346,12 @@ export default function DcBugRun() {
             </div>
           )}
 
-          {/* Quote */}
           <div className="bugrun-quotebar">
             <div className={`bugrun-quote ${quoteVisible ? "visible" : ""}`}>
               {quoteText}
             </div>
           </div>
 
-          {/* Ranking */}
           <div className="bugrun-ranking">
             <div className="bugrun-ranking-title">🏆 TOP 10 BUG RUNNERS</div>
             <ul className="bugrun-ranking-list">
@@ -380,7 +371,6 @@ export default function DcBugRun() {
             </ul>
           </div>
 
-          {/* Footer */}
           <div className="bugrun-footer">
             <span>DCTECH — SOLUÇÕES EM SISTEMAS</span>
             <a href="#contato">Precisa de um dev? →</a>
@@ -390,10 +380,3 @@ export default function DcBugRun() {
     </section>
   );
 }
-'''
-
-with open('/mnt/agents/output/DcBugRun.jsx', 'w', encoding='utf-8') as f:
-    f.write(dcbug_jsx)
-
-print("✅ DcBugRun.jsx salvo")
-print(f"Tamanho: {len(dcbug_jsx)} chars")
