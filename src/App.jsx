@@ -1,4 +1,3 @@
-
 app_jsx = '''import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { gsap } from "gsap";
@@ -8,7 +7,6 @@ import DcBugRun from "./components/DcBugRun";
 
 gsap.registerPlugin(ScrollTrigger);
 
-/* ─── Data ─── */
 const FEATURES = [
   { icon: "bi-code-slash",       title: "Desenvolvimento sob medida",  desc: "Cada sistema é construído para o seu processo específico. Nada de plataformas prontas com limitações." },
   { icon: "bi-phone",            title: "100% responsivo",             desc: "Funciona perfeitamente em computador, tablet e celular — sem perda de funcionalidade ou usabilidade." },
@@ -59,7 +57,6 @@ const STACK = [
   { tech: "Vercel",    desc: "Deploy contínuo e rápido" },
 ];
 
-/* ─── Navbar ─── */
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -112,14 +109,12 @@ function Navbar() {
   );
 }
 
-/* ─── Hero ─── */
 function Hero() {
   const scrollTo  = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   const leftRef   = useRef(null);
   const rightRef  = useRef(null);
   const canvasRef = useRef(null);
 
-  /* Three.js background */
   useEffect(() => {
     let animId;
     let renderer, scene, camera, points;
@@ -214,7 +209,6 @@ function Hero() {
     };
   }, []);
 
-  /* GSAP animations */
   useEffect(() => {
     const ctx = gsap.context(() => {
       gsap.from(leftRef.current.children, {
@@ -239,7 +233,6 @@ function Hero() {
       />
       <div className="container" style={{ position: "relative", zIndex: 1 }}>
         <div className="row align-items-center g-5">
-          {/* Left */}
           <div className="col-lg-6" ref={leftRef}>
             <div className="hero-eyebrow">
               <i className="bi bi-circle-fill" style={{ fontSize: 10 }}></i>
@@ -271,7 +264,6 @@ function Hero() {
             </div>
           </div>
 
-          {/* Right: Dashboard */}
           <div className="col-lg-6" ref={rightRef}>
             <div className="dashboard-panel">
               <div className="panel-header">
@@ -313,7 +305,6 @@ function Hero() {
   );
 }
 
-/* ─── Stats Bar ─── */
 function StatsBar() {
   const ref = useRef(null);
 
@@ -353,7 +344,6 @@ function StatsBar() {
   );
 }
 
-/* ─── Features ─── */
 function Features() {
   const ref     = useRef(null);
   const headRef = useRef(null);
@@ -417,7 +407,6 @@ function Features() {
   );
 }
 
-/* ─── Projects ─── */
 function Projects() {
   const ref     = useRef(null);
   const headRef = useRef(null);
@@ -494,7 +483,6 @@ function Projects() {
   );
 }
 
-/* ─── About ─── */
 function About() {
   const ref     = useRef(null);
   const photoRef = useRef(null);
@@ -567,7 +555,6 @@ Sou graduado em Administração, Mestre em Planejamento e Análise de Políticas
   );
 }
 
-/* ─── CTA / Contact ─── */
 function Cta() {
   const ref = useRef(null);
 
@@ -638,7 +625,6 @@ function Cta() {
   );
 }
 
-/* ─── Footer ─── */
 function Footer() {
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
@@ -676,7 +662,6 @@ function Footer() {
   );
 }
 
-/* ─── App ─── */
 export default function App() {
   return (
     <>
@@ -698,5 +683,5 @@ export default function App() {
 with open('/mnt/agents/output/App.jsx', 'w', encoding='utf-8') as f:
     f.write(app_jsx)
 
-print("✅ App.jsx salvo")
+print("✅ App.jsx LIMPO salvo")
 print(f"Tamanho: {len(app_jsx)} chars")
