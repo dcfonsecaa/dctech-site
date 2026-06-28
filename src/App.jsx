@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Analytics } from "@vercel/analytics/react";
+import DcBugRun from "./componentes/DcBugRun";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -358,7 +358,6 @@ function Features() {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // Cabeçalho da seção
       gsap.from(headRef.current.children, {
         scrollTrigger: {
           trigger: headRef.current,
@@ -371,7 +370,6 @@ function Features() {
         ease: "power2.out",
       });
 
-      // Cards em stagger
       gsap.from(".feat-card", {
         scrollTrigger: {
           trigger: ref.current,
@@ -502,7 +500,6 @@ function About() {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // Foto entra da esquerda
       gsap.from(photoRef.current, {
         scrollTrigger: {
           trigger: ref.current,
@@ -514,7 +511,6 @@ function About() {
         ease: "power3.out",
       });
 
-      // Texto entra da direita
       gsap.from(textRef.current.children, {
         scrollTrigger: {
           trigger: ref.current,
@@ -689,8 +685,8 @@ export default function App() {
       <Projects />
       <About />
       <Cta />
+      <DcBugRun />
       <Footer />
-      <Analytics />
     </>
   );
 }
