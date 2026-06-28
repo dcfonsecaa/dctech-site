@@ -1,4 +1,9 @@
-/* index.css — estilos globais base */
-*, *::before, *::after {
-  box-sizing: border-box;
+/* Bootstrap já importado em main.jsx */
+/* Tailwind desativado temporariamente */
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
