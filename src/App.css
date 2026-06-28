@@ -1,5 +1,4 @@
- 
-app_css = '''/* ─── Tokens ─── */
+/* ─── Tokens ─── */
 :root {
   --navy:      #071527;
   --navy2:     #0a2540;
@@ -283,10 +282,7 @@ a { text-decoration: none; }
   .logo-footer  { height: 40px; }
 }
 
-/* ═══════════════════════════════════════════════════════
-   DC BUG RUN — JOGUINHO INTERATIVO
-   ═══════════════════════════════════════════════════════ */
-
+/* ─── DC BUG RUN ─── */
 .dc-bugrun {
   padding: 96px 0;
   background: var(--navy);
@@ -341,7 +337,6 @@ a { text-decoration: none; }
   background: linear-gradient(180deg, #0f1729 0%, #162033 100%);
 }
 
-/* Overlay */
 .bugrun-overlay {
   position: absolute;
   top: 56px;
@@ -438,7 +433,6 @@ a { text-decoration: none; }
   margin-top: 12px;
 }
 
-/* Quote */
 .bugrun-quotebar {
   padding: 10px 24px;
   background: rgba(37, 99, 235, 0.08);
@@ -462,7 +456,6 @@ a { text-decoration: none; }
   opacity: 1;
 }
 
-/* Ranking */
 .bugrun-ranking {
   padding: 16px 24px;
   border-top: 1px solid rgba(59, 130, 246, 0.1);
@@ -549,7 +542,6 @@ a { text-decoration: none; }
   font-style: italic;
 }
 
-/* Footer */
 .bugrun-footer {
   padding: 8px 24px;
   display: flex;
@@ -575,7 +567,6 @@ a { text-decoration: none; }
   text-decoration: underline;
 }
 
-/* Responsive */
 @media (max-width: 480px) {
   .bugrun-canvas { height: 160px; }
   .bugrun-overlay-title { font-size: 18px; }
@@ -583,10 +574,3 @@ a { text-decoration: none; }
   .bugrun-ranking { padding: 12px 16px; }
   .bugrun-ranking-item { font-size: 12px; padding: 6px 8px; }
 }
-'''
-
-with open('/mnt/agents/output/App.css', 'w', encoding='utf-8') as f:
-    f.write(app_css)
-
-print("✅ App.css salvo")
-print(f"Tamanho: {len(app_css)} chars")
