@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import DcBugRun from "./componentes/DcBugRun";
+import DcBugRun from "./components/DcBugRun";
 
 gsap.registerPlugin(ScrollTrigger);
 
