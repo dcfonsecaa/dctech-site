@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-// Moved outside component to avoid recreation on every render
 const QUOTES = [
   { text: '"Isso é mais rápido que um MVP meu."', author: "— Denis" },
   { text: '"Deploy em produção sem testar? Só no jogo."', author: "— Denis" },
@@ -14,12 +13,15 @@ const QUOTES = [
   { text: '"Sob medida, igual os sistemas que entrego."', author: "— Denis" },
 ];
 
+// Obstáculos com altura variada: alguns no chão, alguns voando
 const OBSTACLE_TYPES = [
-  { emoji: "❌", width: 24, height: 24 },
-  { emoji: "⚠️", width: 24, height: 24 },
-  { emoji: "💥", width: 26, height: 26 },
-  { emoji: "🐛", width: 24, height: 24 },
-  { emoji: "🔥", width: 24, height: 24 },
+  { emoji: "❌", width: 24, height: 24, flying: false },
+  { emoji: "⚠️", width: 24, height: 24, flying: false },
+  { emoji: "💥", width: 26, height: 26, flying: false },
+  { emoji: "🐛", width: 24, height: 24, flying: false },
+  { emoji: "🔥", width: 24, height: 24, flying: false },
+  { emoji: "🦟", width: 22, height: 22, flying: true },  // voa baixo
+  { emoji: "🛸", width: 26, height: 26, flying: true },  // voa alto
 ];
 
 const GROUND_Y = 164;
@@ -39,6 +41,7 @@ export default function DcBugRun() {
   });
   const [quoteVisible, setQuoteVisible] = useState(false);
   const [quoteText, setQuoteText] = useState("");
+  const [jumpsLeft, setJumpsLeft] = useState(2); // HUD duplo pulo
 
   const gameRef = useRef({
     running: false,
@@ -46,10 +49,21 @@ export default function DcBugRun() {
     speed: 4,
     frame: 0,
     obstacles: [],
-    player: { x: 60, y: 0, vy: 0, grounded: false, width: 28, height: 28 },
+    player: { x: 60, y: 0, vy: 0, grounded: false, width: 28, height: 28, jumpsLeft: 2 },
     animId: null,
     lastQuoteIdx: -1,
+    // Partículas de fundo
+    stars: Array.from({ length: 40 }, () => ({
+      x: Math.random() * 720,
+      y: Math.random() * 140,
+      r: Math.random() * 1.5 + 0.3,
+      speed: Math.random() * 0.3 + 0.1,
+      opacity: Math.random() * 0.5 + 0.2,
+    })),
   });
+
+  const highScoreRef = useRef(highScore);
+  useEffect(() => { highScoreRef.current = highScore; }, [highScore]);
 
   const saveRanking = useCallback((newRanking) => {
     setRanking(newRanking);
@@ -79,32 +93,40 @@ export default function DcBugRun() {
     setTimeout(() => setQuoteVisible(false), 4000);
   }, []);
 
-  const drawPlayer = useCallback((ctx, player) => {
+  const drawBackground = useCallback((ctx, canvas, frame, speed) => {
+    // Gradiente de fundo
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, "#0a0e1a");
+    grad.addColorStop(1, "#0f1729");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Estrelas animadas
+    const g = gameRef.current;
     ctx.save();
-    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-    ctx.fillStyle = "#34d399";
-    ctx.beginPath();
-    ctx.roundRect(-12, -10, 24, 20, 6);
-    ctx.fill();
-    ctx.fillStyle = "#0a0e1a";
-    ctx.beginPath();
-    ctx.arc(-5, -4, 3, 0, Math.PI * 2);
-    ctx.arc(5, -4, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#34d399";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-6, -10);
-    ctx.lineTo(-10, -18);
-    ctx.moveTo(6, -10);
-    ctx.lineTo(10, -18);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.beginPath();
-    ctx.arc(-3, 4, 2, 0, Math.PI * 2);
-    ctx.arc(4, 3, 1.5, 0, Math.PI * 2);
-    ctx.fill();
+    g.stars.forEach(star => {
+      star.x -= star.speed * speed * 0.3;
+      if (star.x < 0) {
+        star.x = canvas.width + 2;
+        star.y = Math.random() * 140;
+      }
+      ctx.globalAlpha = star.opacity;
+      ctx.fillStyle = "#60a5fa";
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
     ctx.restore();
+
+    // Grid de fundo
+    ctx.strokeStyle = "rgba(59, 130, 246, 0.04)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < canvas.width; i += 40) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, canvas.height);
+      ctx.stroke();
+    }
   }, []);
 
   const drawGround = useCallback((ctx, canvas, frame, speed) => {
@@ -114,19 +136,60 @@ export default function DcBugRun() {
     ctx.moveTo(0, GROUND_Y + 1);
     ctx.lineTo(canvas.width, GROUND_Y + 1);
     ctx.stroke();
+
     const offset = (frame * speed) % 20;
     ctx.fillStyle = "rgba(59, 130, 246, 0.15)";
     for (let i = -offset; i < canvas.width; i += 20) {
       ctx.fillRect(i, GROUND_Y + 6, 3, 3);
     }
-    ctx.strokeStyle = "rgba(59, 130, 246, 0.05)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < canvas.width; i += 40) {
+  }, []);
+
+  const drawPlayer = useCallback((ctx, player) => {
+    ctx.save();
+    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+
+    // Sombra no chão quando no ar
+    if (!player.grounded) {
+      const shadowY = GROUND_Y - (player.y + player.height / 2) + 8;
+      const shadowScale = Math.max(0.2, 1 - (GROUND_Y - player.y - player.height) / 120);
+      ctx.save();
+      ctx.globalAlpha = 0.18 * shadowScale;
+      ctx.fillStyle = "#3b82f6";
       ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, canvas.height);
-      ctx.stroke();
+      ctx.ellipse(0, shadowY, 14 * shadowScale, 4 * shadowScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
+
+    // Corpo
+    ctx.fillStyle = player.jumpsLeft === 0 ? "#f59e0b" : "#34d399"; // amarelo no 2º pulo
+    ctx.beginPath();
+    ctx.roundRect(-12, -10, 24, 20, 6);
+    ctx.fill();
+
+    // Olhos
+    ctx.fillStyle = "#0a0e1a";
+    ctx.beginPath();
+    ctx.arc(-5, -4, 3, 0, Math.PI * 2);
+    ctx.arc(5, -4, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Antenas
+    ctx.strokeStyle = player.jumpsLeft === 0 ? "#f59e0b" : "#34d399";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-6, -10); ctx.lineTo(-10, -18);
+    ctx.moveTo(6, -10);  ctx.lineTo(10, -18);
+    ctx.stroke();
+
+    // Brilho
+    ctx.fillStyle = "rgba(255,255,255,0.3)";
+    ctx.beginPath();
+    ctx.arc(-3, 4, 2, 0, Math.PI * 2);
+    ctx.arc(4, 3, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
   }, []);
 
   const drawObstacles = useCallback((ctx, obstacles) => {
@@ -137,10 +200,6 @@ export default function DcBugRun() {
       ctx.fillText(obs.emoji, obs.x + obs.width / 2, obs.y + obs.height / 2);
     });
   }, []);
-
-  // FIX: gameOver reads highScore from ref to avoid stale closure
-  const highScoreRef = useRef(highScore);
-  useEffect(() => { highScoreRef.current = highScore; }, [highScore]);
 
   const gameOver = useCallback(() => {
     const g = gameRef.current;
@@ -169,6 +228,8 @@ export default function DcBugRun() {
       player.y = GROUND_Y - player.height;
       player.vy = 0;
       player.grounded = true;
+      player.jumpsLeft = 2; // reset duplo pulo ao tocar o chão
+      setJumpsLeft(2);
     } else {
       player.grounded = false;
     }
@@ -179,20 +240,31 @@ export default function DcBugRun() {
     if (canvas && (g.obstacles.length === 0 || g.obstacles[g.obstacles.length - 1].x < canvas.width - 200)) {
       if (Math.random() < 0.02) {
         const type = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
+
+        // Calcular posição Y baseado se é voador ou não
+        let obsY;
+        if (type.flying) {
+          // voa baixo: altura de 1 pulo; voa alto: altura de 2 pulos
+          const flyLow  = GROUND_Y - type.height - 44;  // precisa 1 pulo
+          const flyHigh = GROUND_Y - type.height - 90;  // precisa 2 pulos
+          obsY = type.emoji === "🛸" ? flyHigh : flyLow;
+        } else {
+          obsY = GROUND_Y - type.height + 4;
+        }
+
         g.obstacles.push({
           x: canvas.width + 120 + Math.random() * 80,
-          y: GROUND_Y - type.height + 4,
+          y: obsY,
           width: type.width,
           height: type.height,
           emoji: type.emoji,
+          flying: type.flying,
           passed: false,
         });
       }
     }
 
     let collided = false;
-
-    // FIX: update obstacle positions and check collisions, then filter separately
     g.obstacles.forEach(obs => {
       obs.x -= g.speed;
       if (!obs.passed && obs.x + obs.width < player.x) {
@@ -212,7 +284,6 @@ export default function DcBugRun() {
       }
     });
 
-    // FIX: use filter instead of splice inside forEach
     g.obstacles = g.obstacles.filter(obs => obs.x + obs.width >= -50);
 
     if (collided) gameOver();
@@ -223,14 +294,16 @@ export default function DcBugRun() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const g = gameRef.current;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    drawBackground(ctx, canvas, g.frame, g.speed);
     drawGround(ctx, canvas, g.frame, g.speed);
     drawObstacles(ctx, g.obstacles);
     drawPlayer(ctx, g.player);
+
     if (g.running) {
       g.animId = requestAnimationFrame(() => { update(); draw(); });
     }
-  }, [drawGround, drawObstacles, drawPlayer, update]);
+  }, [drawBackground, drawGround, drawObstacles, drawPlayer, update]);
 
   const startGame = useCallback(() => {
     const g = gameRef.current;
@@ -242,11 +315,12 @@ export default function DcBugRun() {
     g.player.y = GROUND_Y - g.player.height;
     g.player.vy = 0;
     g.player.grounded = false;
+    g.player.jumpsLeft = 2;
     setScore(0);
+    setJumpsLeft(2);
     setGameState("playing");
     setQuoteVisible(false);
     setTimeout(() => showQuote(), 500);
-    // FIX: removed update() here — draw() already starts the loop via rAF
     draw();
   }, [showQuote, draw]);
 
@@ -261,9 +335,11 @@ export default function DcBugRun() {
   const jump = useCallback(() => {
     const g = gameRef.current;
     if (!g.running) return;
-    if (g.player.grounded) {
+    if (g.player.jumpsLeft > 0) {
       g.player.vy = -9;
       g.player.grounded = false;
+      g.player.jumpsLeft -= 1;
+      setJumpsLeft(g.player.jumpsLeft);
     }
   }, []);
 
@@ -297,9 +373,10 @@ export default function DcBugRun() {
     const ctx = canvas.getContext("2d");
     const g = gameRef.current;
     g.player.y = GROUND_Y - g.player.height;
+    drawBackground(ctx, canvas, 0, 4);
     drawGround(ctx, canvas, 0, 4);
     drawPlayer(ctx, g.player);
-  }, [drawGround, drawPlayer]);
+  }, [drawBackground, drawGround, drawPlayer]);
 
   useEffect(() => () => { cancelAnimationFrame(gameRef.current.animId); }, []);
 
@@ -311,7 +388,17 @@ export default function DcBugRun() {
             <div className="bugrun-title">
               <span>🐛</span> DC BUG RUN
             </div>
-            <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {/* HUD duplo pulo */}
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                {[0, 1].map(i => (
+                  <div key={i} style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: i < jumpsLeft ? "#34d399" : "rgba(100,116,139,0.3)",
+                    transition: "background 0.15s",
+                  }} />
+                ))}
+              </div>
               <span className="bugrun-score">{score.toString().padStart(4, "0")}</span>
               <span className="bugrun-rec">REC: {highScore.toString().padStart(4, "0")}</span>
             </div>
@@ -333,7 +420,7 @@ export default function DcBugRun() {
               </div>
               <div className="bugrun-overlay-sub">
                 {gameState === "menu" ? (
-                  <>Ajude o bug a fugir dos erros de produção!<br />Quanto mais longe, mais estável o sistema.</>
+                  <>Ajude o bug a fugir dos erros de produção!<br />Toque 2x para duplo pulo. Cuidado com os voadores!</>
                 ) : (
                   <>
                     Score: <strong>{score}</strong> | Recorde: <strong>{highScore}</strong><br />
@@ -360,7 +447,7 @@ export default function DcBugRun() {
               <button className="bugrun-btn" onClick={handleStart}>
                 {gameState === "menu" ? "▶ Jogar" : "↻ Tentar de novo"}
               </button>
-              <div className="bugrun-hint">Espaço / Clique / Toque para pular</div>
+              <div className="bugrun-hint">Espaço / Clique / Toque — 2x para duplo pulo</div>
             </div>
           )}
 
