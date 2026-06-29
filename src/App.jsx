@@ -12,11 +12,36 @@ const FEATURES = [
   { icon: "bi-phone",            title: "100% responsivo",             desc: "Funciona perfeitamente em computador, tablet e celular — sem perda de funcionalidade ou usabilidade." },
   { icon: "bi-rocket-takeoff",   title: "Entrega rápida",              desc: "MVPs funcionais em semanas, não meses. Você começa a usar o sistema enquanto ele ainda evolui." },
   { icon: "bi-shield-check",     title: "Seguro e confiável",          desc: "Autenticação, controle de acesso e dados protegidos. Infraestrutura moderna em nuvem." },
+  { icon: "bi-graph-up-arimport { useEffect, useRef, useState } from "react";
+import "./App.css";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import DcBugRun from "./componentes/DcBugRun";
+
+gsap.registerPlugin(ScrollTrigger);
+
+/* ─── Data ─── */
+const FEATURES = [
+  { icon: "bi-code-slash",       title: "Desenvolvimento sob medida",  desc: "Cada sistema é construído para o seu processo específico. Nada de plataformas prontas com limitações." },
+  { icon: "bi-phone",            title: "100% responsivo",             desc: "Funciona perfeitamente em computador, tablet e celular — sem perda de funcionalidade ou usabilidade." },
+  { icon: "bi-rocket-takeoff",   title: "Entrega rápida",              desc: "MVPs funcionais em semanas, não meses. Você começa a usar o sistema enquanto ele ainda evolui." },
+  { icon: "bi-shield-check",     title: "Seguro e confiável",          desc: "Autenticação, controle de acesso e dados protegidos. Infraestrutura moderna em nuvem." },
   { icon: "bi-graph-up-arrow",   title: "Escalável",                   desc: "Começa pequeno e cresce com o negócio. Arquitetura preparada para volume crescente." },
   { icon: "bi-headset",          title: "Suporte próximo",             desc: "Atendimento direto comigo. Sem fila de suporte ou chamados perdidos." },
 ];
 
 const SYSTEMS = [
+  {
+    icon: "bi-archive",
+    tag: "Gestão Documental",
+    title: "SIPAD",
+    desc: "Sistema Integrado de Plano Arquivístico Documental desenvolvido para a UFU. Gestão de classificação, temporalidade e destinação documental alinhada ao e-ARQ Brasil. Registro INPI BR512025002920-9 e ISBN 978-65-01-59216-9.",
+    link: "https://classficacao2025.pythonanywhere.com/",
+    linkLabel: "Acessar sistema",
+    showCreds: true,
+    username: "searq",
+    password: "Arq@3892",
+  },
   {
     icon: "bi-robot",
     tag: "IA Generativa",
@@ -44,7 +69,7 @@ const SYSTEMS = [
 ];
 
 const STATS = [
-  { number: "3+",    label: "Projetos entregues" },
+  { number: "4+",    label: "Projetos entregues" },
   { number: "React", label: "Frontend" },
   { number: "Java",  label: "Backend" },
   { number: "24h",   label: "Tempo de resposta" },
@@ -53,6 +78,7 @@ const STATS = [
 const STACK = [
   { tech: "React",     desc: "Frontend moderno e responsivo" },
   { tech: "Java",      desc: "Backend robusto e escalável" },
+  { tech: "Python",    desc: "Sistemas institucionais e ciência de dados" },
   { tech: "Supabase",  desc: "Banco de dados em tempo real" },
   { tech: "Vercel",    desc: "Deploy contínuo e rápido" },
 ];
@@ -284,11 +310,12 @@ function Hero() {
                   <span /><span /><span />
                 </div>
                 <div className="metric-row">
-                  <div className="metric-box"><small>Projetos</small><strong>3+</strong></div>
+                  <div className="metric-box"><small>Projetos</small><strong>4+</strong></div>
                   <div className="metric-box"><small>Ambiente</small><strong>Web</strong></div>
                   <div className="metric-box highlight"><small>Status</small><strong>Ativo</strong></div>
                 </div>
                 {[
+                  { icon: "bi-archive",    name: "SIPAD",            sub: "Gestão documental UFU" },
                   { icon: "bi-robot",      name: "Claud.ia",         sub: "Assistente IA para devs" },
                   { icon: "bi-car-front",  name: "Clássicos Via 2R", sub: "Classificados automotivos" },
                   { icon: "bi-people",     name: "Resolve Aí",       sub: "Marketplace de serviços" },
@@ -471,9 +498,21 @@ function Projects() {
                   <i className={`bi ${s.icon}`}></i>
                 </div>
                 <div className="sys-card-body">
-                  <div className="sys-card-tag">{s.tag}</div>
+                  <div className="sys-card-tag">
+                    {s.tag}
+                    {s.title === "SIPAD" && <span className="badge-patente">🏆 PATENTE</span>}
+                  </div>
                   <h4>{s.title}</h4>
                   <p>{s.desc}</p>
+                  
+                  {/* Credenciais do SIPAD */}
+                  {s.showCreds && (
+                    <div className="creds-box">
+                      <p><strong>👤 Usuário:</strong> {s.username}</p>
+                      <p><strong>🔑 Senha:</strong> {s.password}</p>
+                    </div>
+                  )}
+                  
                   <a
                     href={s.link}
                     className="sys-link"
