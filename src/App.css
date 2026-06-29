@@ -284,7 +284,7 @@ a { text-decoration: none; }
 
 /* ─── DC BUG RUN ─── */
 .dc-bugrun {
-  padding: 96px 0;
+  padding: 48px 0 96px;
   background: var(--navy);
 }
 
