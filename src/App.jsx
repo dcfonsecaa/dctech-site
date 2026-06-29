@@ -2,20 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import DcBugRun from "./components/DcBugRun";
-
-gsap.registerPlugin(ScrollTrigger);
-
-/* ─── Data ─── */
-const FEATURES = [
-  { icon: "bi-code-slash",       title: "Desenvolvimento sob medida",  desc: "Cada sistema é construído para o seu processo específico. Nada de plataformas prontas com limitações." },
-  { icon: "bi-phone",            title: "100% responsivo",             desc: "Funciona perfeitamente em computador, tablet e celular — sem perda de funcionalidade ou usabilidade." },
-  { icon: "bi-rocket-takeoff",   title: "Entrega rápida",              desc: "MVPs funcionais em semanas, não meses. Você começa a usar o sistema enquanto ele ainda evolui." },
-  { icon: "bi-shield-check",     title: "Seguro e confiável",          desc: "Autenticação, controle de acesso e dados protegidos. Infraestrutura moderna em nuvem." },
-  { icon: "bi-graph-up-arimport { useEffect, useRef, useState } from "react";
-import "./App.css";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import DcBugRun from "./componentes/DcBugRun";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -38,9 +24,6 @@ const SYSTEMS = [
     desc: "Sistema Integrado de Plano Arquivístico Documental desenvolvido para a UFU. Gestão de classificação, temporalidade e destinação documental alinhada ao e-ARQ Brasil. Registro INPI BR512025002920-9 e ISBN 978-65-01-59216-9.",
     link: "https://classficacao2025.pythonanywhere.com/",
     linkLabel: "Acessar sistema",
-    showCreds: true,
-    username: "searq",
-    password: "Arq@3892",
   },
   {
     icon: "bi-robot",
@@ -498,21 +481,9 @@ function Projects() {
                   <i className={`bi ${s.icon}`}></i>
                 </div>
                 <div className="sys-card-body">
-                  <div className="sys-card-tag">
-                    {s.tag}
-                    {s.title === "SIPAD" && <span className="badge-patente">🏆 PATENTE</span>}
-                  </div>
+                  <div className="sys-card-tag">{s.tag}</div>
                   <h4>{s.title}</h4>
                   <p>{s.desc}</p>
-                  
-                  {/* Credenciais do SIPAD */}
-                  {s.showCreds && (
-                    <div className="creds-box">
-                      <p><strong>👤 Usuário:</strong> {s.username}</p>
-                      <p><strong>🔑 Senha:</strong> {s.password}</p>
-                    </div>
-                  )}
-                  
                   <a
                     href={s.link}
                     className="sys-link"
