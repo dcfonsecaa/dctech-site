@@ -21,7 +21,7 @@ const SYSTEMS = [
     icon: "bi-archive",
     tag: "Gestão Documental",
     title: "SIPAD",
-    desc: "Sistema Integrado de Plano Arquivístico Documental desenvolvido para a UFU. Gestão de classificação, temporalidade e destinação documental alinhada ao e-ARQ Brasil. Registro INPI BR512025002920-9 e ISBN 978-65-01-59216-9. Para acessar o sistema: Usuário: Searq - Senha: Arq@3892",
+    desc: "Sistema Integrado de Plano Arquivístico Documental desenvolvido para a UFU. Gestão de classificação, temporalidade e destinação documental alinhada ao e-ARQ Brasil. Registro INPI BR512025002920-9 e ISBN 978-65-01-59216-9. Para acessar o sistema: Usuário: searq - Senha: Arq@3892",
     link: "https://classficacao2025.pythonanywhere.com/",
     linkLabel: "Acessar sistema",
   },
