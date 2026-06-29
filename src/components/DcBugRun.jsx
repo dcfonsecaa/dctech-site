@@ -1,5 +1,29 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
+// Moved outside component to avoid recreation on every render
+const QUOTES = [
+  { text: '"Isso é mais rápido que um MVP meu."', author: "— Denis" },
+  { text: '"Deploy em produção sem testar? Só no jogo."', author: "— Denis" },
+  { text: '"Meu código real é mais estável que isso."', author: "— Denis" },
+  { text: '"Já vi bug pior em sistema de cliente."', author: "— Denis" },
+  { text: '"Se fosse React, renderizava mais liso."', author: "— Denis" },
+  { text: '"Java não deixa cair assim, hein?"', author: "— Denis" },
+  { text: '"Supabase aguenta mais que esse bug."', author: "— Denis" },
+  { text: '"Vercel deploya em segundos. Esse bug, nem tanto."', author: "— Denis" },
+  { text: '"24h de resposta. O bug não espera."', author: "— Denis" },
+  { text: '"Sob medida, igual os sistemas que entrego."', author: "— Denis" },
+];
+
+const OBSTACLE_TYPES = [
+  { emoji: "❌", width: 24, height: 24 },
+  { emoji: "⚠️", width: 24, height: 24 },
+  { emoji: "💥", width: 26, height: 26 },
+  { emoji: "🐛", width: 24, height: 24 },
+  { emoji: "🔥", width: 24, height: 24 },
+];
+
+const GROUND_Y = 164;
+
 export default function DcBugRun() {
   const canvasRef = useRef(null);
   const [score, setScore] = useState(0);
@@ -27,29 +51,6 @@ export default function DcBugRun() {
     lastQuoteIdx: -1,
   });
 
-  const groundY = 164;
-
-  const quotes = [
-    { text: '"Isso é mais rápido que um MVP meu."', author: "— Denis" },
-    { text: '"Deploy em produção sem testar? Só no jogo."', author: "— Denis" },
-    { text: '"Meu código real é mais estável que isso."', author: "— Denis" },
-    { text: '"Já vi bug pior em sistema de cliente."', author: "— Denis" },
-    { text: '"Se fosse React, renderizava mais liso."', author: "— Denis" },
-    { text: '"Java não deixa cair assim, hein?"', author: "— Denis" },
-    { text: '"Supabase aguenta mais que esse bug."', author: "— Denis" },
-    { text: '"Vercel deploya em segundos. Esse bug, nem tanto."', author: "— Denis" },
-    { text: '"24h de resposta. O bug não espera."', author: "— Denis" },
-    { text: '"Sob medida, igual os sistemas que entrego."', author: "— Denis" },
-  ];
-
-  const obstacleTypes = [
-    { emoji: "❌", width: 24, height: 24 },
-    { emoji: "⚠️", width: 24, height: 24 },
-    { emoji: "💥", width: 26, height: 26 },
-    { emoji: "🐛", width: 24, height: 24 },
-    { emoji: "🔥", width: 24, height: 24 },
-  ];
-
   const saveRanking = useCallback((newRanking) => {
     setRanking(newRanking);
     try { localStorage.setItem("dcbug_ranking", JSON.stringify(newRanking)); }
@@ -58,21 +59,25 @@ export default function DcBugRun() {
 
   const addToRanking = useCallback((name, scoreVal) => {
     const newEntry = { name: name.trim() || "Anônimo", score: scoreVal, date: new Date().toISOString() };
-    const updated = [...ranking, newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
-    saveRanking(updated);
-  }, [ranking, saveRanking]);
+    setRanking(prev => {
+      const updated = [...prev, newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
+      try { localStorage.setItem("dcbug_ranking", JSON.stringify(updated)); }
+      catch {}
+      return updated;
+    });
+  }, []);
 
   const showQuote = useCallback(() => {
     const g = gameRef.current;
     let idx;
-    do { idx = Math.floor(Math.random() * quotes.length); }
-    while (idx === g.lastQuoteIdx && quotes.length > 1);
+    do { idx = Math.floor(Math.random() * QUOTES.length); }
+    while (idx === g.lastQuoteIdx && QUOTES.length > 1);
     g.lastQuoteIdx = idx;
-    const q = quotes[idx];
+    const q = QUOTES[idx];
     setQuoteText(`${q.text} ${q.author}`);
     setQuoteVisible(true);
     setTimeout(() => setQuoteVisible(false), 4000);
-  }, [quotes]);
+  }, []);
 
   const drawPlayer = useCallback((ctx, player) => {
     ctx.save();
@@ -106,13 +111,13 @@ export default function DcBugRun() {
     ctx.strokeStyle = "rgba(59, 130, 246, 0.3)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, groundY + 1);
-    ctx.lineTo(canvas.width, groundY + 1);
+    ctx.moveTo(0, GROUND_Y + 1);
+    ctx.lineTo(canvas.width, GROUND_Y + 1);
     ctx.stroke();
     const offset = (frame * speed) % 20;
     ctx.fillStyle = "rgba(59, 130, 246, 0.15)";
     for (let i = -offset; i < canvas.width; i += 20) {
-      ctx.fillRect(i, groundY + 6, 3, 3);
+      ctx.fillRect(i, GROUND_Y + 6, 3, 3);
     }
     ctx.strokeStyle = "rgba(59, 130, 246, 0.05)";
     ctx.lineWidth = 1;
@@ -133,19 +138,23 @@ export default function DcBugRun() {
     });
   }, []);
 
+  // FIX: gameOver reads highScore from ref to avoid stale closure
+  const highScoreRef = useRef(highScore);
+  useEffect(() => { highScoreRef.current = highScore; }, [highScore]);
+
   const gameOver = useCallback(() => {
     const g = gameRef.current;
     g.running = false;
     cancelAnimationFrame(g.animId);
     setGameState("gameover");
-    if (g.score > highScore) {
+    if (g.score > highScoreRef.current) {
       setHighScore(g.score);
       try { localStorage.setItem("dcbug_high", g.score.toString()); }
       catch {}
     }
     setQuoteText('"Até os melhores devs encontram bugs. Quer um sistema que funcione?" — Denis');
     setQuoteVisible(true);
-  }, [highScore]);
+  }, []);
 
   const update = useCallback(() => {
     const g = gameRef.current;
@@ -156,8 +165,8 @@ export default function DcBugRun() {
     player.vy += 0.45;
     player.y += player.vy;
 
-    if (player.y + player.height >= groundY) {
-      player.y = groundY - player.height;
+    if (player.y + player.height >= GROUND_Y) {
+      player.y = GROUND_Y - player.height;
       player.vy = 0;
       player.grounded = true;
     } else {
@@ -166,12 +175,13 @@ export default function DcBugRun() {
 
     g.speed = 4 + Math.floor(g.score / 500) * 0.5;
 
-    if (g.obstacles.length === 0 || g.obstacles[g.obstacles.length - 1].x < canvasRef.current.width - 200) {
+    const canvas = canvasRef.current;
+    if (canvas && (g.obstacles.length === 0 || g.obstacles[g.obstacles.length - 1].x < canvas.width - 200)) {
       if (Math.random() < 0.02) {
-        const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+        const type = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
         g.obstacles.push({
-          x: canvasRef.current.width + 120 + Math.random() * 80,
-          y: groundY - type.height + 4,
+          x: canvas.width + 120 + Math.random() * 80,
+          y: GROUND_Y - type.height + 4,
           width: type.width,
           height: type.height,
           emoji: type.emoji,
@@ -180,7 +190,10 @@ export default function DcBugRun() {
       }
     }
 
-    g.obstacles.forEach((obs, i) => {
+    let collided = false;
+
+    // FIX: update obstacle positions and check collisions, then filter separately
+    g.obstacles.forEach(obs => {
       obs.x -= g.speed;
       if (!obs.passed && obs.x + obs.width < player.x) {
         obs.passed = true;
@@ -188,16 +201,21 @@ export default function DcBugRun() {
         setScore(g.score);
         if (g.score % 100 === 0 && g.score > 0) showQuote();
       }
-      if (obs.x + obs.width < -50) g.obstacles.splice(i, 1);
       if (
+        !collided &&
         player.x < obs.x + obs.width - 4 &&
         player.x + player.width > obs.x + 4 &&
         player.y < obs.y + obs.height - 4 &&
         player.y + player.height > obs.y + 4
       ) {
-        gameOver();
+        collided = true;
       }
     });
+
+    // FIX: use filter instead of splice inside forEach
+    g.obstacles = g.obstacles.filter(obs => obs.x + obs.width >= -50);
+
+    if (collided) gameOver();
   }, [showQuote, gameOver]);
 
   const draw = useCallback(() => {
@@ -216,21 +234,21 @@ export default function DcBugRun() {
 
   const startGame = useCallback(() => {
     const g = gameRef.current;
-    const canvas = canvasRef.current;
     g.running = true;
     g.score = 0;
     g.speed = 4;
     g.frame = 0;
     g.obstacles = [];
-    g.player.y = groundY - g.player.height;
+    g.player.y = GROUND_Y - g.player.height;
     g.player.vy = 0;
+    g.player.grounded = false;
     setScore(0);
     setGameState("playing");
     setQuoteVisible(false);
     setTimeout(() => showQuote(), 500);
-    update();
+    // FIX: removed update() here — draw() already starts the loop via rAF
     draw();
-  }, [showQuote, update, draw]);
+  }, [showQuote, draw]);
 
   const handleStart = useCallback(() => {
     if (gameState === "gameover" && playerName.trim()) {
@@ -278,7 +296,7 @@ export default function DcBugRun() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const g = gameRef.current;
-    g.player.y = groundY - g.player.height;
+    g.player.y = GROUND_Y - g.player.height;
     drawGround(ctx, canvas, 0, 4);
     drawPlayer(ctx, g.player);
   }, [drawGround, drawPlayer]);
