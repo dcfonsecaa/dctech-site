@@ -1,86 +1,130 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
+// ─── Quotes DCTECH ───
 const QUOTES = [
-  { text: '"Isso é mais rápido que um MVP meu."', author: "— Denis" },
-  { text: '"Deploy em produção sem testar? Só no jogo."', author: "— Denis" },
-  { text: '"Meu código real é mais estável que isso."', author: "— Denis" },
-  { text: '"Já vi bug pior em sistema de cliente."', author: "— Denis" },
-  { text: '"Se fosse React, renderizava mais liso."', author: "— Denis" },
-  { text: '"Java não deixa cair assim, hein?"', author: "— Denis" },
-  { text: '"Supabase aguenta mais que esse bug."', author: "— Denis" },
-  { text: '"Vercel deploya em segundos. Esse bug, nem tanto."', author: "— Denis" },
-  { text: '"24h de resposta. O bug não espera."', author: "— Denis" },
+  { text: '"Subindo colinas como subo pull requests."', author: "— Denis" },
+  { text: '"Meu deploy é mais suave que essa descida."', author: "— Denis" },
+  { text: '"Java no backend, física no frontend."', author: "— Denis" },
+  { text: '"Cada curva é um requisito novo do cliente."', author: "— Denis" },
+  { text: '"Sem combustível, sem sistema. Simples assim."', author: "— Denis" },
+  { text: '"React renderiza mais rápido que esse carro."', author: "— Denis" },
+  { text: '"Supabase aguenta mais impacto que essa capotagem."', author: "— Denis" },
+  { text: '"Vercel no ar em segundos. O carro, nem tanto."', author: "— Denis" },
+  { text: '"24h de resposta. O combustível não espera."', author: "— Denis" },
   { text: '"Sob medida, igual os sistemas que entrego."', author: "— Denis" },
 ];
 
-// Obstáculos com altura variada: alguns no chão, alguns voando
-const OBSTACLE_TYPES = [
-  { emoji: "❌", width: 24, height: 24, flying: false },
-  { emoji: "⚠️", width: 24, height: 24, flying: false },
-  { emoji: "💥", width: 26, height: 26, flying: false },
-  { emoji: "🐛", width: 24, height: 24, flying: false },
-  { emoji: "🔥", width: 24, height: 24, flying: false },
-  { emoji: "🦟", width: 22, height: 22, flying: true },  // voa baixo
-  { emoji: "🛸", width: 26, height: 26, flying: true },  // voa alto
-];
+// ─── Terrain generation ───
+const SEGMENT = 6;        // pixels por segmento de terreno
+const TERRAIN_LEN = 600;  // segmentos pré-gerados à frente
 
-const GROUND_Y = 164;
+function generateTerrain(startX, count, seed) {
+  const pts = [];
+  let y = 160;
+  let angle = 0;
+  for (let i = 0; i < count; i++) {
+    angle += (Math.sin((startX + i * SEGMENT) * 0.008 + seed) * 0.04 +
+              Math.sin((startX + i * SEGMENT) * 0.003 + seed * 1.7) * 0.03);
+    angle = Math.clamp ? Math.clamp(angle, -0.18, 0.18) : Math.max(-0.18, Math.min(0.18, angle));
+    y += Math.sin(angle) * SEGMENT;
+    y = Math.max(80, Math.min(220, y));
+    pts.push({ x: startX + i * SEGMENT, y });
+  }
+  return pts;
+}
+
+function getTerrainY(terrain, worldX) {
+  // binary-ish lookup
+  const idx = Math.floor((worldX - terrain[0].x) / SEGMENT);
+  if (idx < 0) return terrain[0].y;
+  if (idx >= terrain.length - 1) return terrain[terrain.length - 1].y;
+  const t = (worldX - terrain[idx].x) / SEGMENT;
+  return terrain[idx].y + (terrain[idx + 1].y - terrain[idx].y) * t;
+}
+
+function getTerrainAngle(terrain, worldX) {
+  const idx = Math.floor((worldX - terrain[0].x) / SEGMENT);
+  const i = Math.max(0, Math.min(idx, terrain.length - 2));
+  const dx = terrain[i + 1].x - terrain[i].x;
+  const dy = terrain[i + 1].y - terrain[i].y;
+  return Math.atan2(dy, dx);
+}
+
+const CANVAS_W = 720;
+const CANVAS_H = 240;
+const FUEL_MAX = 100;
+const CAR_W = 52;
+const CAR_H = 22;
+const WHEEL_R = 11;
+const AXLE_FRONT = 18;
+const AXLE_REAR = -18;
 
 export default function DcBugRun() {
   const canvasRef = useRef(null);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(() => {
-    try { return parseInt(localStorage.getItem("dcbug_high") || "0"); }
+    try { return parseInt(localStorage.getItem("dchillclimb_high") || "0"); }
     catch { return 0; }
   });
+  const [fuel, setFuel] = useState(FUEL_MAX);
   const [gameState, setGameState] = useState("menu");
   const [playerName, setPlayerName] = useState("");
   const [ranking, setRanking] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("dcbug_ranking") || "[]"); }
+    try { return JSON.parse(localStorage.getItem("dchillclimb_ranking") || "[]"); }
     catch { return []; }
   });
   const [quoteVisible, setQuoteVisible] = useState(false);
   const [quoteText, setQuoteText] = useState("");
-  const [jumpsLeft, setJumpsLeft] = useState(2); // HUD duplo pulo
+  const [gameOverReason, setGameOverReason] = useState(""); // "fuel" | "flip"
+
+  const keysRef = useRef({ gas: false, brake: false });
 
   const gameRef = useRef({
     running: false,
-    score: 0,
-    speed: 4,
-    frame: 0,
-    obstacles: [],
-    player: { x: 60, y: 0, vy: 0, grounded: false, width: 28, height: 28, jumpsLeft: 2 },
     animId: null,
     lastQuoteIdx: -1,
-    // Partículas de fundo
-    stars: Array.from({ length: 40 }, () => ({
-      x: Math.random() * 720,
-      y: Math.random() * 140,
-      r: Math.random() * 1.5 + 0.3,
-      speed: Math.random() * 0.3 + 0.1,
-      opacity: Math.random() * 0.5 + 0.2,
+    // car physics
+    car: {
+      x: 120,        // world X of car center
+      vx: 0,
+      angle: 0,      // car body angle
+      angularV: 0,
+      fuel: FUEL_MAX,
+      flipped: false,
+    },
+    camera: 120,     // world X that maps to CANVAS_W/2 - 160
+    terrain: [],
+    terrainEnd: 0,
+    dist: 0,
+    frame: 0,
+    score: 0,
+    seed: Math.random() * 100,
+    // coins
+    coins: [],
+    particles: [],
+    stars: Array.from({ length: 35 }, () => ({
+      x: Math.random() * CANVAS_W,
+      y: Math.random() * 100,
+      r: Math.random() * 1.4 + 0.3,
+      opacity: Math.random() * 0.4 + 0.15,
     })),
   });
 
   const highScoreRef = useRef(highScore);
   useEffect(() => { highScoreRef.current = highScore; }, [highScore]);
 
-  const saveRanking = useCallback((newRanking) => {
-    setRanking(newRanking);
-    try { localStorage.setItem("dcbug_ranking", JSON.stringify(newRanking)); }
-    catch {}
-  }, []);
-
+  // ─── Ranking ───
   const addToRanking = useCallback((name, scoreVal) => {
     const newEntry = { name: name.trim() || "Anônimo", score: scoreVal, date: new Date().toISOString() };
     setRanking(prev => {
       const updated = [...prev, newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
-      try { localStorage.setItem("dcbug_ranking", JSON.stringify(updated)); }
+      try { localStorage.setItem("dchillclimb_ranking", JSON.stringify(updated)); }
       catch {}
       return updated;
     });
   }, []);
 
+  // ─── Quote ───
   const showQuote = useCallback(() => {
     const g = gameRef.current;
     let idx;
@@ -93,337 +137,527 @@ export default function DcBugRun() {
     setTimeout(() => setQuoteVisible(false), 4000);
   }, []);
 
-  const drawBackground = useCallback((ctx, canvas, frame, speed) => {
-    // Gradiente de fundo
-    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grad.addColorStop(0, "#0a0e1a");
-    grad.addColorStop(1, "#0f1729");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Estrelas animadas
-    const g = gameRef.current;
-    ctx.save();
-    g.stars.forEach(star => {
-      star.x -= star.speed * speed * 0.3;
-      if (star.x < 0) {
-        star.x = canvas.width + 2;
-        star.y = Math.random() * 140;
-      }
-      ctx.globalAlpha = star.opacity;
-      ctx.fillStyle = "#60a5fa";
-      ctx.beginPath();
-      ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.restore();
-
-    // Grid de fundo
-    ctx.strokeStyle = "rgba(59, 130, 246, 0.04)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < canvas.width; i += 40) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, canvas.height);
-      ctx.stroke();
-    }
-  }, []);
-
-  const drawGround = useCallback((ctx, canvas, frame, speed) => {
-    ctx.strokeStyle = "rgba(59, 130, 246, 0.3)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y + 1);
-    ctx.lineTo(canvas.width, GROUND_Y + 1);
-    ctx.stroke();
-
-    const offset = (frame * speed) % 20;
-    ctx.fillStyle = "rgba(59, 130, 246, 0.15)";
-    for (let i = -offset; i < canvas.width; i += 20) {
-      ctx.fillRect(i, GROUND_Y + 6, 3, 3);
-    }
-  }, []);
-
-  const drawPlayer = useCallback((ctx, player) => {
-    ctx.save();
-    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-
-    // Sombra no chão quando no ar
-    if (!player.grounded) {
-      const shadowY = GROUND_Y - (player.y + player.height / 2) + 8;
-      const shadowScale = Math.max(0.2, 1 - (GROUND_Y - player.y - player.height) / 120);
-      ctx.save();
-      ctx.globalAlpha = 0.18 * shadowScale;
-      ctx.fillStyle = "#3b82f6";
-      ctx.beginPath();
-      ctx.ellipse(0, shadowY, 14 * shadowScale, 4 * shadowScale, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Corpo
-    ctx.fillStyle = player.jumpsLeft === 0 ? "#f59e0b" : "#34d399"; // amarelo no 2º pulo
-    ctx.beginPath();
-    ctx.roundRect(-12, -10, 24, 20, 6);
-    ctx.fill();
-
-    // Olhos
-    ctx.fillStyle = "#0a0e1a";
-    ctx.beginPath();
-    ctx.arc(-5, -4, 3, 0, Math.PI * 2);
-    ctx.arc(5, -4, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Antenas
-    ctx.strokeStyle = player.jumpsLeft === 0 ? "#f59e0b" : "#34d399";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-6, -10); ctx.lineTo(-10, -18);
-    ctx.moveTo(6, -10);  ctx.lineTo(10, -18);
-    ctx.stroke();
-
-    // Brilho
-    ctx.fillStyle = "rgba(255,255,255,0.3)";
-    ctx.beginPath();
-    ctx.arc(-3, 4, 2, 0, Math.PI * 2);
-    ctx.arc(4, 3, 1.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  }, []);
-
-  const drawObstacles = useCallback((ctx, obstacles) => {
-    obstacles.forEach(obs => {
-      ctx.font = `${obs.height}px Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(obs.emoji, obs.x + obs.width / 2, obs.y + obs.height / 2);
-    });
-  }, []);
-
-  const gameOver = useCallback(() => {
+  // ─── Game Over ───
+  const gameOver = useCallback((reason) => {
     const g = gameRef.current;
     g.running = false;
     cancelAnimationFrame(g.animId);
+    const finalScore = Math.floor(g.dist / 10);
+    g.score = finalScore;
+    setScore(finalScore);
+    setGameOverReason(reason);
     setGameState("gameover");
-    if (g.score > highScoreRef.current) {
-      setHighScore(g.score);
-      try { localStorage.setItem("dcbug_high", g.score.toString()); }
+    if (finalScore > highScoreRef.current) {
+      setHighScore(finalScore);
+      try { localStorage.setItem("dchillclimb_high", finalScore.toString()); }
       catch {}
     }
-    setQuoteText('"Até os melhores devs encontram bugs. Quer um sistema que funcione?" — Denis');
+    const msg = reason === "fuel"
+      ? '"Sem combustível. Até sistemas precisam de energia." — Denis'
+      : '"Capotou. Bugs acontecem. O importante é refatorar." — Denis';
+    setQuoteText(msg);
     setQuoteVisible(true);
   }, []);
 
-  const update = useCallback(() => {
+  // ─── Draw ───
+  const drawScene = useCallback((ctx, canvas) => {
     const g = gameRef.current;
-    if (!g.running) return;
+    const car = g.car;
+    const camX = car.x - 160; // world X at left edge of canvas
 
-    g.frame++;
-    const player = g.player;
-    player.vy += 0.45;
-    player.y += player.vy;
+    // Sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    sky.addColorStop(0, "#060d1f");
+    sky.addColorStop(1, "#0d1f3c");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (player.y + player.height >= GROUND_Y) {
-      player.y = GROUND_Y - player.height;
-      player.vy = 0;
-      player.grounded = true;
-      player.jumpsLeft = 2; // reset duplo pulo ao tocar o chão
-      setJumpsLeft(2);
-    } else {
-      player.grounded = false;
-    }
+    // Stars (parallax 0.2)
+    g.stars.forEach(s => {
+      const sx = ((s.x - camX * 0.2) % canvas.width + canvas.width) % canvas.width;
+      ctx.globalAlpha = s.opacity;
+      ctx.fillStyle = "#93c5fd";
+      ctx.beginPath();
+      ctx.arc(sx, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
 
-    g.speed = 4 + Math.floor(g.score / 500) * 0.5;
+    // Terrain fill
+    const terrain = g.terrain;
+    if (terrain.length < 2) return;
 
-    const canvas = canvasRef.current;
-    if (canvas && (g.obstacles.length === 0 || g.obstacles[g.obstacles.length - 1].x < canvas.width - 200)) {
-      if (Math.random() < 0.02) {
-        const type = OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
+    ctx.beginPath();
+    ctx.moveTo(terrain[0].x - camX, canvas.height);
+    terrain.forEach(p => ctx.lineTo(p.x - camX, p.y));
+    ctx.lineTo(terrain[terrain.length - 1].x - camX, canvas.height);
+    ctx.closePath();
+    const terrGrad = ctx.createLinearGradient(0, 80, 0, canvas.height);
+    terrGrad.addColorStop(0, "#1e3a5f");
+    terrGrad.addColorStop(0.3, "#0f2540");
+    terrGrad.addColorStop(1, "#07131f");
+    ctx.fillStyle = terrGrad;
+    ctx.fill();
 
-        // Calcular posição Y baseado se é voador ou não
-        let obsY;
-        if (type.flying) {
-          // voa baixo: altura de 1 pulo; voa alto: altura de 2 pulos
-          const flyLow  = GROUND_Y - type.height - 44;  // precisa 1 pulo
-          const flyHigh = GROUND_Y - type.height - 90;  // precisa 2 pulos
-          obsY = type.emoji === "🛸" ? flyHigh : flyLow;
-        } else {
-          obsY = GROUND_Y - type.height + 4;
-        }
+    // Terrain line
+    ctx.beginPath();
+    terrain.forEach((p, i) => {
+      const sx = p.x - camX;
+      if (i === 0) ctx.moveTo(sx, p.y);
+      else ctx.lineTo(sx, p.y);
+    });
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
 
-        g.obstacles.push({
-          x: canvas.width + 120 + Math.random() * 80,
-          y: obsY,
-          width: type.width,
-          height: type.height,
-          emoji: type.emoji,
-          flying: type.flying,
-          passed: false,
+    // Coins
+    g.coins.forEach(c => {
+      if (c.collected) return;
+      const sx = c.x - camX;
+      if (sx < -20 || sx > canvas.width + 20) return;
+      ctx.save();
+      ctx.translate(sx, c.y);
+      ctx.fillStyle = "#fbbf24";
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#fff8";
+      ctx.font = "bold 8px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("$", 0, 0.5);
+      ctx.restore();
+    });
+
+    // Particles
+    g.particles = g.particles.filter(p => p.life > 0);
+    g.particles.forEach(p => {
+      ctx.globalAlpha = p.life / p.maxLife;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x - camX, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.08;
+      p.life--;
+    });
+    ctx.globalAlpha = 1;
+
+    // ─── Car ───
+    const scrX = car.x - camX;
+    const groundY = getTerrainY(terrain, car.x);
+    const carY = groundY - WHEEL_R - CAR_H / 2 - 4;
+
+    ctx.save();
+    ctx.translate(scrX, carY);
+    ctx.rotate(car.angle);
+
+    // Exhaust smoke when braking
+    if (keysRef.current.brake && g.running) {
+      for (let i = 0; i < 1; i++) {
+        g.particles.push({
+          x: car.x - AXLE_REAR - 8,
+          y: carY + 4,
+          vx: -1.5 - Math.random(),
+          vy: -0.5 + (Math.random() - 0.5),
+          r: 3 + Math.random() * 2,
+          color: "#94a3b8",
+          life: 18, maxLife: 18,
         });
       }
     }
 
-    let collided = false;
-    g.obstacles.forEach(obs => {
-      obs.x -= g.speed;
-      if (!obs.passed && obs.x + obs.width < player.x) {
-        obs.passed = true;
-        g.score += 10;
-        setScore(g.score);
-        if (g.score % 100 === 0 && g.score > 0) showQuote();
+    // Car body
+    ctx.fillStyle = "#1d4ed8";
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(-CAR_W / 2, -CAR_H / 2, CAR_W, CAR_H, 5);
+    ctx.fill();
+    ctx.stroke();
+
+    // Cabin
+    ctx.fillStyle = "#2563eb";
+    ctx.beginPath();
+    ctx.roundRect(-8, -CAR_H / 2 - 12, 22, 14, [4, 4, 0, 0]);
+    ctx.fill();
+
+    // Windows
+    ctx.fillStyle = "rgba(147,197,253,0.35)";
+    ctx.beginPath();
+    ctx.roundRect(-6, -CAR_H / 2 - 10, 18, 10, 3);
+    ctx.fill();
+
+    // Headlight
+    ctx.fillStyle = "#fef08a";
+    ctx.shadowColor = "#fef08a";
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(CAR_W / 2 - 4, 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Exhaust pipe
+    ctx.fillStyle = "#475569";
+    ctx.fillRect(-CAR_W / 2 - 6, 5, 8, 4);
+
+    ctx.restore();
+
+    // Wheels
+    [AXLE_FRONT, AXLE_REAR].forEach(ax => {
+      const wx = car.x + ax * Math.cos(car.angle);
+      const wBase = getTerrainY(terrain, wx);
+      const wsx = wx - camX;
+      const wsy = wBase - WHEEL_R;
+
+      ctx.save();
+      ctx.translate(wsx, wsy);
+
+      // Wheel shadow
+      ctx.globalAlpha = 0.2;
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(0, WHEEL_R + 2, WHEEL_R * 0.8, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Tire
+      ctx.fillStyle = "#1e293b";
+      ctx.strokeStyle = "#334155";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, WHEEL_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Rim
+      ctx.fillStyle = "#60a5fa";
+      ctx.beginPath();
+      ctx.arc(0, 0, WHEEL_R * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Spoke
+      ctx.strokeStyle = "#93c5fd";
+      ctx.lineWidth = 1.5;
+      const rot = (g.frame * (car.vx > 0 ? 0.1 : -0.1)) % (Math.PI * 2);
+      for (let s = 0; s < 4; s++) {
+        const a = rot + s * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * WHEEL_R * 0.48, Math.sin(a) * WHEEL_R * 0.48);
+        ctx.stroke();
       }
-      if (
-        !collided &&
-        player.x < obs.x + obs.width - 4 &&
-        player.x + player.width > obs.x + 4 &&
-        player.y < obs.y + obs.height - 4 &&
-        player.y + player.height > obs.y + 4
-      ) {
-        collided = true;
-      }
+      ctx.restore();
     });
 
-    g.obstacles = g.obstacles.filter(obs => obs.x + obs.width >= -50);
+    // Fuel bar (in-canvas HUD)
+    const fuelPct = car.fuel / FUEL_MAX;
+    const barW = 100, barH = 8, barX = 10, barY = 10;
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, 4);
+    ctx.fill();
+    const fuelColor = fuelPct > 0.4 ? "#22c55e" : fuelPct > 0.2 ? "#f59e0b" : "#ef4444";
+    ctx.fillStyle = fuelColor;
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW * fuelPct, barH, 4);
+    ctx.fill();
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = "bold 9px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText("⛽", barX, barY + 20);
 
-    if (collided) gameOver();
-  }, [showQuote, gameOver]);
+    // Distance HUD
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.roundRect(canvas.width - 90, 8, 82, 20, 5);
+    ctx.fill();
+    ctx.fillStyle = "#34d399";
+    ctx.font = "bold 11px monospace";
+    ctx.textAlign = "right";
+    ctx.fillText(`${Math.floor(g.dist / 10)}m`, canvas.width - 12, 22);
 
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const g = gameRef.current;
-
-    drawBackground(ctx, canvas, g.frame, g.speed);
-    drawGround(ctx, canvas, g.frame, g.speed);
-    drawObstacles(ctx, g.obstacles);
-    drawPlayer(ctx, g.player);
-
+    // Gas/Brake indicators
     if (g.running) {
-      g.animId = requestAnimationFrame(() => { update(); draw(); });
-    }
-  }, [drawBackground, drawGround, drawObstacles, drawPlayer, update]);
-
-  const startGame = useCallback(() => {
-    const g = gameRef.current;
-    g.running = true;
-    g.score = 0;
-    g.speed = 4;
-    g.frame = 0;
-    g.obstacles = [];
-    g.player.y = GROUND_Y - g.player.height;
-    g.player.vy = 0;
-    g.player.grounded = false;
-    g.player.jumpsLeft = 2;
-    setScore(0);
-    setJumpsLeft(2);
-    setGameState("playing");
-    setQuoteVisible(false);
-    setTimeout(() => showQuote(), 500);
-    draw();
-  }, [showQuote, draw]);
-
-  const handleStart = useCallback(() => {
-    if (gameState === "gameover" && playerName.trim()) {
-      addToRanking(playerName, gameRef.current.score);
-    }
-    setPlayerName("");
-    startGame();
-  }, [gameState, playerName, addToRanking, startGame]);
-
-  const jump = useCallback(() => {
-    const g = gameRef.current;
-    if (!g.running) return;
-    if (g.player.jumpsLeft > 0) {
-      g.player.vy = -9;
-      g.player.grounded = false;
-      g.player.jumpsLeft -= 1;
-      setJumpsLeft(g.player.jumpsLeft);
+      ["⚡ GAS", "🛑 FREIO"].forEach((label, i) => {
+        const active = i === 0 ? keysRef.current.gas : keysRef.current.brake;
+        ctx.globalAlpha = active ? 1 : 0.3;
+        ctx.fillStyle = active ? (i === 0 ? "#34d399" : "#f87171") : "#64748b";
+        ctx.font = "bold 10px Arial";
+        ctx.textAlign = i === 0 ? "left" : "right";
+        ctx.fillText(label, i === 0 ? 12 : canvas.width - 12, canvas.height - 8);
+        ctx.globalAlpha = 1;
+      });
     }
   }, []);
 
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.code === "Space" || e.code === "ArrowUp") {
-        e.preventDefault();
-        if (gameState !== "playing") {
-          if (gameState === "gameover" && document.activeElement?.id === "bug-name-input") return;
-          handleStart();
-        } else {
-          jump();
+  // ─── Update physics ───
+  const updatePhysics = useCallback(() => {
+    const g = gameRef.current;
+    if (!g.running) return;
+    const car = g.car;
+    const terrain = g.terrain;
+    g.frame++;
+
+    const terrAngle = getTerrainAngle(terrain, car.x);
+    const gas = keysRef.current.gas;
+    const brake = keysRef.current.brake;
+
+    // Acceleration
+    const maxSpeed = 6;
+    if (gas) {
+      car.vx += Math.cos(terrAngle) * 0.18;
+      car.fuel -= 0.08;
+    }
+    if (brake) {
+      car.vx -= 0.25;
+    }
+
+    // Gravity component along slope
+    car.vx += Math.sin(terrAngle) * (-0.12);
+
+    // Friction
+    car.vx *= 0.985;
+    car.vx = Math.max(-2, Math.min(maxSpeed, car.vx));
+
+    car.x += car.vx;
+    if (car.x < 80) { car.x = 80; car.vx = 0; }
+
+    // Car body angle follows terrain smoothly
+    const targetAngle = terrAngle;
+    car.angle += (targetAngle - car.angle) * 0.12;
+
+    // Flip detection
+    if (Math.abs(car.angle) > 1.1) {
+      gameOver("flip");
+      return;
+    }
+
+    // Fuel
+    car.fuel = Math.max(0, car.fuel);
+    setFuel(car.fuel);
+    if (car.fuel <= 0) {
+      gameOver("fuel");
+      return;
+    }
+
+    // Distance & score
+    g.dist = Math.max(g.dist, car.x - 120);
+    const newScore = Math.floor(g.dist / 10);
+    if (newScore !== g.score) {
+      g.score = newScore;
+      setScore(newScore);
+      if (newScore > 0 && newScore % 50 === 0) showQuote();
+    }
+
+    // Extend terrain
+    if (car.x + CANVAS_W > g.terrainEnd - SEGMENT * 10) {
+      const extra = generateTerrain(g.terrainEnd, 200, g.seed);
+      g.terrain = [...g.terrain.slice(-200), ...extra];
+      g.terrainEnd = g.terrain[g.terrain.length - 1].x;
+
+      // Spawn coins on new terrain
+      extra.filter((_, i) => i % 18 === 8).forEach(p => {
+        g.coins.push({ x: p.x, y: p.y - 28, collected: false });
+      });
+    }
+
+    // Remove off-screen terrain & coins
+    g.terrain = g.terrain.filter(p => p.x > car.x - CANVAS_W);
+    g.coins = g.coins.filter(c => c.x > car.x - CANVAS_W);
+
+    // Coin collection
+    g.coins.forEach(c => {
+      if (c.collected) return;
+      if (Math.abs(c.x - car.x) < 20 && Math.abs(c.y - (getTerrainY(terrain, car.x) - WHEEL_R - CAR_H / 2)) < 30) {
+        c.collected = true;
+        car.fuel = Math.min(FUEL_MAX, car.fuel + 8);
+        for (let i = 0; i < 8; i++) {
+          g.particles.push({
+            x: c.x, y: c.y,
+            vx: (Math.random() - 0.5) * 3,
+            vy: -Math.random() * 2 - 1,
+            r: 2 + Math.random() * 2,
+            color: "#fbbf24",
+            life: 20, maxLife: 20,
+          });
         }
       }
-      if (e.code === "Enter" && gameState === "gameover") {
+    });
+  }, [showQuote, gameOver]);
+
+  // ─── Game loop ───
+  const loop = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const g = gameRef.current;
+
+    updatePhysics();
+    drawScene(ctx, canvas);
+
+    if (g.running) {
+      g.animId = requestAnimationFrame(loop);
+    }
+  }, [updatePhysics, drawScene]);
+
+  // ─── Start game ───
+  const startGame = useCallback(() => {
+    const g = gameRef.current;
+    const seed = Math.random() * 100;
+    g.seed = seed;
+    const terrain = generateTerrain(0, TERRAIN_LEN, seed);
+    g.terrain = terrain;
+    g.terrainEnd = terrain[terrain.length - 1].x;
+    g.car = { x: 120, vx: 0, angle: 0, angularV: 0, fuel: FUEL_MAX, flipped: false };
+    g.dist = 0;
+    g.score = 0;
+    g.frame = 0;
+    g.coins = terrain.filter((_, i) => i % 18 === 8).map(p => ({ x: p.x, y: p.y - 28, collected: false }));
+    g.particles = [];
+    g.running = true;
+    setScore(0);
+    setFuel(FUEL_MAX);
+    setGameState("playing");
+    setQuoteVisible(false);
+    setTimeout(() => showQuote(), 800);
+    g.animId = requestAnimationFrame(loop);
+  }, [showQuote, loop]);
+
+  const handleStart = useCallback(() => {
+    if (gameState === "gameover" && playerName.trim()) {
+      addToRanking(playerName, score);
+    }
+    setPlayerName("");
+    startGame();
+  }, [gameState, playerName, score, addToRanking, startGame]);
+
+  // ─── Controls ───
+  useEffect(() => {
+    const onDown = (e) => {
+      if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = true;
+      if (e.code === "ArrowLeft"  || e.code === "KeyA") keysRef.current.brake = true;
+      if ((e.code === "Space" || e.code === "Enter") && gameState !== "playing") {
+        e.preventDefault();
+        if (gameState === "gameover" && document.activeElement?.id === "hill-name-input") return;
         handleStart();
       }
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [gameState, handleStart, jump]);
+    const onUp = (e) => {
+      if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = false;
+      if (e.code === "ArrowLeft"  || e.code === "KeyA") keysRef.current.brake = false;
+    };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    return () => { window.removeEventListener("keydown", onDown); window.removeEventListener("keyup", onUp); };
+  }, [gameState, handleStart]);
 
-  const onCanvasInteract = useCallback(() => {
-    if (gameState !== "playing") handleStart();
-    else jump();
-  }, [gameState, handleStart, jump]);
-
+  // ─── Initial draw ───
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const g = gameRef.current;
-    g.player.y = GROUND_Y - g.player.height;
-    drawBackground(ctx, canvas, 0, 4);
-    drawGround(ctx, canvas, 0, 4);
-    drawPlayer(ctx, g.player);
-  }, [drawBackground, drawGround, drawPlayer]);
+    const terrain = generateTerrain(0, TERRAIN_LEN, g.seed);
+    g.terrain = terrain;
+    g.terrainEnd = terrain[terrain.length - 1].x;
+    g.coins = terrain.filter((_, i) => i % 18 === 8).map(p => ({ x: p.x, y: p.y - 28, collected: false }));
+    drawScene(ctx, canvas);
+  }, [drawScene]);
 
   useEffect(() => () => { cancelAnimationFrame(gameRef.current.animId); }, []);
+
+  // ─── Touch buttons ───
+  const gasStart  = useCallback(() => { keysRef.current.gas   = true;  }, []);
+  const gasEnd    = useCallback(() => { keysRef.current.gas   = false; }, []);
+  const brakeStart= useCallback(() => { keysRef.current.brake = true;  }, []);
+  const brakeEnd  = useCallback(() => { keysRef.current.brake = false; }, []);
+
+  const fuelPct = fuel / FUEL_MAX;
 
   return (
     <section className="dc-bugrun">
       <div className="container">
         <div className="bugrun-card">
+
+          {/* Header */}
           <div className="bugrun-header">
             <div className="bugrun-title">
-              <span>🐛</span> DC BUG RUN
+              <span>🚗</span> DC HILL CLIMB
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              {/* HUD duplo pulo */}
-              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                {[0, 1].map(i => (
-                  <div key={i} style={{
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: i < jumpsLeft ? "#34d399" : "rgba(100,116,139,0.3)",
-                    transition: "background 0.15s",
+              {/* Fuel HUD */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>⛽</span>
+                <div style={{ width: 60, height: 6, background: "rgba(100,116,139,0.3)", borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{
+                    width: `${fuelPct * 100}%`, height: "100%", borderRadius: 3,
+                    background: fuelPct > 0.4 ? "#22c55e" : fuelPct > 0.2 ? "#f59e0b" : "#ef4444",
+                    transition: "width 0.3s, background 0.3s",
                   }} />
-                ))}
+                </div>
               </div>
-              <span className="bugrun-score">{score.toString().padStart(4, "0")}</span>
-              <span className="bugrun-rec">REC: {highScore.toString().padStart(4, "0")}</span>
+              <span className="bugrun-score">{score.toString().padStart(4, "0")}m</span>
+              <span className="bugrun-rec">REC: {highScore.toString().padStart(4, "0")}m</span>
             </div>
           </div>
 
+          {/* Canvas */}
           <canvas
             ref={canvasRef}
-            width={720}
-            height={200}
+            width={CANVAS_W}
+            height={CANVAS_H}
             className="bugrun-canvas"
-            onClick={onCanvasInteract}
-            onTouchStart={(e) => { e.preventDefault(); onCanvasInteract(); }}
+            style={{ height: CANVAS_H }}
           />
 
+          {/* Touch controls */}
+          {gameState === "playing" && (
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              padding: "8px 16px", background: "rgba(0,0,0,0.3)",
+              borderTop: "1px solid rgba(59,130,246,0.1)",
+            }}>
+              <button
+                onTouchStart={(e) => { e.preventDefault(); brakeStart(); }}
+                onTouchEnd={(e) => { e.preventDefault(); brakeEnd(); }}
+                onMouseDown={brakeStart} onMouseUp={brakeEnd} onMouseLeave={brakeEnd}
+                style={{
+                  background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)",
+                  borderRadius: 10, padding: "10px 28px", color: "#f87171",
+                  fontSize: 13, fontWeight: 700, cursor: "pointer", userSelect: "none",
+                }}
+              >◀ FREIO</button>
+              <button
+                onTouchStart={(e) => { e.preventDefault(); gasStart(); }}
+                onTouchEnd={(e) => { e.preventDefault(); gasEnd(); }}
+                onMouseDown={gasStart} onMouseUp={gasEnd} onMouseLeave={gasEnd}
+                style={{
+                  background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)",
+                  borderRadius: 10, padding: "10px 28px", color: "#34d399",
+                  fontSize: 13, fontWeight: 700, cursor: "pointer", userSelect: "none",
+                }}
+              >GÁS ▶</button>
+            </div>
+          )}
+
+          {/* Overlay */}
           {gameState !== "playing" && (
             <div className="bugrun-overlay">
               <div className="bugrun-overlay-title">
-                {gameState === "menu" ? "🐛 DC Bug Run" : "💥 Game Over!"}
+                {gameState === "menu" ? "🚗 DC Hill Climb" : gameOverReason === "fuel" ? "⛽ Sem combustível!" : "💥 Capotou!"}
               </div>
               <div className="bugrun-overlay-sub">
                 {gameState === "menu" ? (
-                  <>Ajude o bug a fugir dos erros de produção!<br />Toque 2x para duplo pulo. Cuidado com os voadores!</>
+                  <>Acelere morro acima e colete moedas para reabastecer!<br />
+                  Use ← Freio e → Gás (ou os botões na tela)</>
                 ) : (
                   <>
-                    Score: <strong>{score}</strong> | Recorde: <strong>{highScore}</strong><br />
+                    Distância: <strong>{score}m</strong> | Recorde: <strong>{highScore}m</strong><br />
                     {score >= highScore && score > 0 ? <span className="bugrun-newrec">🎉 Novo recorde!</span> : null}
                   </>
                 )}
@@ -433,7 +667,7 @@ export default function DcBugRun() {
                 <div className="bugrun-namearea">
                   <label>Qual seu primeiro nome?</label>
                   <input
-                    id="bug-name-input"
+                    id="hill-name-input"
                     type="text"
                     value={playerName}
                     onChange={(e) => setPlayerName(e.target.value)}
@@ -447,21 +681,23 @@ export default function DcBugRun() {
               <button className="bugrun-btn" onClick={handleStart}>
                 {gameState === "menu" ? "▶ Jogar" : "↻ Tentar de novo"}
               </button>
-              <div className="bugrun-hint">Espaço / Clique / Toque — 2x para duplo pulo</div>
+              <div className="bugrun-hint">← Freio &nbsp;|&nbsp; → Gás &nbsp;|&nbsp; Moedas = combustível</div>
             </div>
           )}
 
+          {/* Quote bar */}
           <div className="bugrun-quotebar">
             <div className={`bugrun-quote ${quoteVisible ? "visible" : ""}`}>
               {quoteText}
             </div>
           </div>
 
+          {/* Ranking */}
           <div className="bugrun-ranking">
-            <div className="bugrun-ranking-title">🏆 TOP 10 BUG RUNNERS</div>
+            <div className="bugrun-ranking-title">🏆 TOP 10 HILL CLIMBERS</div>
             <ul className="bugrun-ranking-list">
               {ranking.length === 0 ? (
-                <li className="bugrun-ranking-empty">Ninguém jogou ainda. Seja o primeiro! 🐛</li>
+                <li className="bugrun-ranking-empty">Ninguém jogou ainda. Seja o primeiro! 🚗</li>
               ) : (
                 ranking.map((entry, i) => (
                   <li key={i} className={`bugrun-ranking-item rank-${i + 1}`}>
@@ -469,13 +705,14 @@ export default function DcBugRun() {
                       {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
                     </span>
                     <span className="bugrun-rank-name">{entry.name}</span>
-                    <span className="bugrun-rank-score">{entry.score.toString().padStart(4, "0")}</span>
+                    <span className="bugrun-rank-score">{entry.score}m</span>
                   </li>
                 ))
               )}
             </ul>
           </div>
 
+          {/* Footer */}
           <div className="bugrun-footer">
             <span>DCTECH — SOLUÇÕES EM SISTEMAS</span>
             <a href="#contato">Precisa de um dev? →</a>
