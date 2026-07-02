@@ -76,7 +76,7 @@ export default function DcBugRun() {
   const [quoteText, setQuoteText] = useState("");
   const [gameOverReason, setGameOverReason] = useState("");
 
-  const keysRef = useRef({ gas: false, brake: false, jump: false });
+  const keysRef = useRef({ gas: false, brake: false, jump: false, jumpPressed: false });
 
   const gameRef = useRef({
     running: false,
@@ -123,7 +123,6 @@ export default function DcBugRun() {
   const highScoreRef = useRef(highScore);
   useEffect(() => { highScoreRef.current = highScore; }, [highScore]);
 
-  // ─── Ranking ───
   const addToRanking = useCallback((name, scoreVal) => {
     const newEntry = { name: name.trim() || "Anônimo", score: scoreVal, date: new Date().toISOString() };
     setRanking(prev => {
@@ -134,7 +133,6 @@ export default function DcBugRun() {
     });
   }, []);
 
-  // ─── Quote ───
   const showQuote = useCallback(() => {
     const g = gameRef.current;
     let idx;
@@ -147,7 +145,6 @@ export default function DcBugRun() {
     setTimeout(() => setQuoteVisible(false), 4000);
   }, []);
 
-  // ─── Game Over ───
   const gameOver = useCallback((reason) => {
     const g = gameRef.current;
     g.running = false;
@@ -169,13 +166,12 @@ export default function DcBugRun() {
     setQuoteVisible(true);
   }, []);
 
-  // ─── Draw ───
   const drawScene = useCallback((ctx, canvas) => {
     const g = gameRef.current;
     const car = g.car;
     const camX = car.x - 160;
 
-    // Sky gradient — deep night blue
+    // Sky gradient
     const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
     sky.addColorStop(0, "#030712");
     sky.addColorStop(0.3, "#0a1628");
@@ -193,7 +189,6 @@ export default function DcBugRun() {
     ctx.arc(canvas.width - 80, 45, 22, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    // Moon crater
     ctx.fillStyle = "rgba(200,200,210,0.3)";
     ctx.beginPath();
     ctx.arc(canvas.width - 75, 40, 5, 0, Math.PI * 2);
@@ -203,7 +198,7 @@ export default function DcBugRun() {
     ctx.fill();
     ctx.restore();
 
-    // Stars with twinkle
+    // Stars
     g.stars.forEach(s => {
       const twinkle = Math.sin(g.frame * s.twinkleSpeed + s.twinkle) * 0.3 + 0.7;
       const sx = ((s.x - camX * 0.1) % canvas.width + canvas.width) % canvas.width;
@@ -222,7 +217,7 @@ export default function DcBugRun() {
     });
     ctx.globalAlpha = 1;
 
-    // Mountains (parallax 0.05)
+    // Mountains
     g.mountains.forEach(m => {
       const mx = ((m.x - camX * 0.05) % (canvas.width + 400) + (canvas.width + 400)) % (canvas.width + 400) - 200;
       ctx.fillStyle = m.color;
@@ -234,7 +229,7 @@ export default function DcBugRun() {
       ctx.fill();
     });
 
-    // Clouds (parallax 0.15)
+    // Clouds
     g.clouds.forEach(c => {
       c.x -= c.speed;
       if (c.x < -c.w) c.x = canvas.width + c.w;
@@ -253,7 +248,7 @@ export default function DcBugRun() {
     });
     ctx.globalAlpha = 1;
 
-    // Terrain fill with depth
+    // Terrain
     const terrain = g.terrain;
     if (terrain.length < 2) return;
 
@@ -270,7 +265,6 @@ export default function DcBugRun() {
     ctx.fillStyle = terrGrad;
     ctx.fill();
 
-    // Terrain highlight line
     ctx.beginPath();
     terrain.forEach((p, i) => {
       const sx = p.x - camX;
@@ -284,7 +278,6 @@ export default function DcBugRun() {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Terrain secondary line (depth)
     ctx.beginPath();
     terrain.forEach((p, i) => {
       const sx = p.x - camX;
@@ -295,7 +288,6 @@ export default function DcBugRun() {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Ground texture dots
     ctx.fillStyle = "rgba(100, 149, 237, 0.08)";
     for (let tx = Math.floor(camX / 30) * 30; tx < camX + canvas.width + 30; tx += 30) {
       const ty = getTerrainY(terrain, tx);
@@ -313,32 +305,36 @@ export default function DcBugRun() {
       if (sx < -20 || sx > canvas.width + 20) return;
       ctx.save();
       ctx.translate(sx, c.y);
-      // Glow
-      ctx.shadowColor = "#fbbf24";
+      const isGood = c.type === "good";
+      const glowColor = isGood ? "#22c55e" : "#ef4444";
+      const bodyColor = isGood ? "#22c55e" : "#ef4444";
+      const highlightColor = isGood ? "#86efac" : "#fca5a5";
+      const textColor = isGood ? "#14532d" : "#7f1d1d";
+      
+      ctx.shadowColor = glowColor;
       ctx.shadowBlur = 15;
-      // Outer ring
-      ctx.strokeStyle = "#f59e0b";
+      ctx.strokeStyle = isGood ? "#16a34a" : "#dc2626";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(0, 0, 9, 0, Math.PI * 2);
       ctx.stroke();
       ctx.shadowBlur = 0;
-      // Coin body
-      ctx.fillStyle = "#fbbf24";
+      
+      ctx.fillStyle = bodyColor;
       ctx.beginPath();
       ctx.arc(0, 0, 7, 0, Math.PI * 2);
       ctx.fill();
-      // Inner highlight
-      ctx.fillStyle = "#fde68a";
+      
+      ctx.fillStyle = highlightColor;
       ctx.beginPath();
       ctx.arc(-2, -2, 3, 0, Math.PI * 2);
       ctx.fill();
-      // $ symbol
-      ctx.fillStyle = "#92400e";
-      ctx.font = "bold 9px Arial";
+      
+      ctx.fillStyle = textColor;
+      ctx.font = "bold 8px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("$", 0, 0.5);
+      ctx.fillText("DC", 0, 0.5);
       ctx.restore();
     });
 
@@ -367,7 +363,6 @@ export default function DcBugRun() {
     ctx.translate(scrX, carY);
     ctx.rotate(car.angle);
 
-    // Jump trail
     if (car.airborne && car.vy < 0) {
       for (let i = 0; i < 3; i++) {
         g.particles.push({
@@ -382,7 +377,6 @@ export default function DcBugRun() {
       }
     }
 
-    // Exhaust smoke
     if (keysRef.current.brake && g.running) {
       for (let i = 0; i < 2; i++) {
         g.particles.push({
@@ -397,7 +391,6 @@ export default function DcBugRun() {
       }
     }
 
-    // Speed lines when fast
     if (car.vx > 4 && g.running) {
       for (let i = 0; i < 2; i++) {
         g.particles.push({
@@ -412,7 +405,6 @@ export default function DcBugRun() {
       }
     }
 
-    // Car body shadow
     ctx.globalAlpha = 0.25;
     ctx.fillStyle = "#000";
     ctx.beginPath();
@@ -420,7 +412,6 @@ export default function DcBugRun() {
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // Car body — sleek blue
     ctx.fillStyle = "#1e40af";
     ctx.strokeStyle = "#3b82f6";
     ctx.lineWidth = 1.5;
@@ -429,13 +420,11 @@ export default function DcBugRun() {
     ctx.fill();
     ctx.stroke();
 
-    // Body highlight
     ctx.fillStyle = "rgba(59, 130, 246, 0.25)";
     ctx.beginPath();
     ctx.roundRect(-CAR_W / 2 + 2, -CAR_H / 2 + 1, CAR_W - 4, CAR_H / 3, [2, 4, 0, 0]);
     ctx.fill();
 
-    // Cabin
     ctx.fillStyle = "#1d4ed8";
     ctx.beginPath();
     ctx.roundRect(-6, -CAR_H / 2 - 14, 26, 16, [5, 5, 0, 0]);
@@ -444,18 +433,15 @@ export default function DcBugRun() {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Windows with reflection
     ctx.fillStyle = "rgba(147, 197, 253, 0.4)";
     ctx.beginPath();
     ctx.roundRect(-4, -CAR_H / 2 - 12, 22, 11, 3);
     ctx.fill();
-    // Window highlight
     ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
     ctx.beginPath();
     ctx.roundRect(-4, -CAR_H / 2 - 12, 14, 5, [3, 3, 0, 0]);
     ctx.fill();
 
-    // Headlight with beam
     ctx.fillStyle = "#fef08a";
     ctx.shadowColor = "#fef08a";
     ctx.shadowBlur = 12;
@@ -463,7 +449,7 @@ export default function DcBugRun() {
     ctx.arc(CAR_W / 2 - 3, 3, 3.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    // Light beam
+
     ctx.globalAlpha = 0.08;
     ctx.fillStyle = "#fef08a";
     ctx.beginPath();
@@ -474,7 +460,6 @@ export default function DcBugRun() {
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    // Taillight
     ctx.fillStyle = "#ef4444";
     ctx.shadowColor = "#ef4444";
     ctx.shadowBlur = 6;
@@ -483,13 +468,11 @@ export default function DcBugRun() {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Exhaust pipe
     ctx.fillStyle = "#475569";
     ctx.fillRect(-CAR_W / 2 - 7, 6, 9, 5);
     ctx.fillStyle = "#334155";
     ctx.fillRect(-CAR_W / 2 - 7, 6, 9, 2);
 
-    // DC logo on car
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.font = "bold 7px Arial";
     ctx.textAlign = "center";
@@ -507,7 +490,6 @@ export default function DcBugRun() {
       ctx.save();
       ctx.translate(wsx, wsy);
 
-      // Wheel shadow
       ctx.globalAlpha = 0.2;
       ctx.fillStyle = "#000";
       ctx.beginPath();
@@ -515,7 +497,6 @@ export default function DcBugRun() {
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      // Tire
       ctx.fillStyle = "#0f172a";
       ctx.strokeStyle = "#1e293b";
       ctx.lineWidth = 2.5;
@@ -524,7 +505,6 @@ export default function DcBugRun() {
       ctx.fill();
       ctx.stroke();
 
-      // Tire tread marks
       ctx.strokeStyle = "#334155";
       ctx.lineWidth = 1;
       const treadRot = (g.frame * (car.vx > 0 ? 0.15 : -0.15)) % (Math.PI * 2);
@@ -536,7 +516,6 @@ export default function DcBugRun() {
         ctx.stroke();
       }
 
-      // Rim
       ctx.fillStyle = "#3b82f6";
       ctx.beginPath();
       ctx.arc(0, 0, WHEEL_R * 0.55, 0, Math.PI * 2);
@@ -546,7 +525,6 @@ export default function DcBugRun() {
       ctx.arc(0, 0, WHEEL_R * 0.4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Spokes
       ctx.strokeStyle = "#93c5fd";
       ctx.lineWidth = 2;
       const rot = (g.frame * (car.vx > 0 ? 0.15 : -0.15)) % (Math.PI * 2);
@@ -558,7 +536,6 @@ export default function DcBugRun() {
         ctx.stroke();
       }
 
-      // Center cap
       ctx.fillStyle = "#1e40af";
       ctx.beginPath();
       ctx.arc(0, 0, 3, 0, Math.PI * 2);
@@ -567,8 +544,7 @@ export default function DcBugRun() {
       ctx.restore();
     });
 
-    // ─── HUD ───
-    // Fuel bar
+    // HUD
     const fuelPct = car.fuel / FUEL_MAX;
     const barW = 120, barH = 10, barX = 14, barY = 14;
     ctx.fillStyle = "rgba(0,0,0,0.5)";
@@ -587,7 +563,6 @@ export default function DcBugRun() {
     ctx.roundRect(barX, barY, barW * fuelPct, barH, 5);
     ctx.fill();
     ctx.shadowBlur = 0;
-    // Fuel icon
     ctx.fillStyle = "#cbd5e1";
     ctx.font = "bold 11px Arial";
     ctx.textAlign = "left";
@@ -596,7 +571,6 @@ export default function DcBugRun() {
     ctx.font = "10px Arial";
     ctx.fillText(`${Math.round(fuelPct * 100)}%`, barX + 20, barY + 24);
 
-    // Distance HUD
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.beginPath();
     ctx.roundRect(canvas.width - 110, 10, 100, 26, 8);
@@ -609,7 +583,6 @@ export default function DcBugRun() {
     ctx.textAlign = "right";
     ctx.fillText(`${Math.floor(g.dist / 10)}m`, canvas.width - 16, 28);
 
-    // Speed indicator
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
     ctx.roundRect(canvas.width - 110, 42, 100, 20, 6);
@@ -620,7 +593,6 @@ export default function DcBugRun() {
     const speed = Math.abs(car.vx).toFixed(1);
     ctx.fillText(`${speed} km/h`, canvas.width - 16, 56);
 
-    // Control hints
     if (g.running) {
       ctx.font = "bold 10px Arial";
       ["⚡ GÁS", "🛑 FREIO", "⬆ PULAR"].forEach((label, i) => {
@@ -649,11 +621,13 @@ export default function DcBugRun() {
     const gas = keysRef.current.gas;
     const brake = keysRef.current.brake;
     const jump = keysRef.current.jump;
+    const jumpPressed = keysRef.current.jumpPressed;
 
-    // Jump mechanics
-    if (jump && !car.airborne && car.vx > 1) {
-      car.vy = -5.5;
+    // Jump mechanics — single press detection
+    if (jump && !jumpPressed && !car.airborne && car.vx > 0.5) {
+      car.vy = -6;
       car.airborne = true;
+      keysRef.current.jumpPressed = true;
       for (let i = 0; i < 10; i++) {
         g.particles.push({
           x: car.x + (Math.random() - 0.5) * 30,
@@ -665,6 +639,10 @@ export default function DcBugRun() {
           life: 15, maxLife: 15,
         });
       }
+    }
+    // Reset jumpPressed when key is released
+    if (!jump) {
+      keysRef.current.jumpPressed = false;
     }
 
     if (car.airborne) {
@@ -690,11 +668,11 @@ export default function DcBugRun() {
       }
     }
 
-    // Acceleration
+    // Acceleration — fuel consumption FIX: always consume when gas is pressed
     const maxSpeed = 7;
-    if (gas && !car.airborne) {
+    if (gas) {
       car.vx += Math.cos(terrAngle) * 0.2;
-      car.fuel -= 0.07;
+      car.fuel -= 0.12; // CONSUME FUEL EVERY FRAME GAS IS PRESSED
     }
     if (brake) {
       car.vx -= 0.3;
@@ -723,6 +701,7 @@ export default function DcBugRun() {
       return;
     }
 
+    // Fuel check — FIXED
     car.fuel = Math.max(0, car.fuel);
     setFuel(car.fuel);
     if (car.fuel <= 0 && !car.airborne) {
@@ -742,27 +721,45 @@ export default function DcBugRun() {
       const extra = generateTerrain(g.terrainEnd, 200, g.seed);
       g.terrain = [...g.terrain.slice(-200), ...extra];
       g.terrainEnd = g.terrain[g.terrain.length - 1].x;
-      extra.filter((_, i) => i % 18 === 8).forEach(p => {
-        g.coins.push({ x: p.x, y: p.y - 32, collected: false });
+      
+      // Spawn coins on new terrain — some ground, some elevated (need jump)
+      extra.forEach((p, i) => {
+        if (i % 18 === 8) {
+          const isElevated = Math.random() > 0.4; // 60% chance of elevated coin
+          const coinType = Math.random() > 0.3 ? "good" : "bad"; // 70% good, 30% bad
+          g.coins.push({
+            x: p.x,
+            y: isElevated ? p.y - 55 : p.y - 32,
+            collected: false,
+            type: coinType,
+            elevated: isElevated,
+          });
+        }
       });
     }
 
     g.terrain = g.terrain.filter(p => p.x > car.x - CANVAS_W);
     g.coins = g.coins.filter(c => c.x > car.x - CANVAS_W);
 
+    // Coin collection — FIXED: check against actual car position including jump offset
     g.coins.forEach(c => {
       if (c.collected) return;
       const carScreenY = getTerrainY(terrain, car.x) - WHEEL_R - CAR_H / 2 - 4 - car.yOffset;
-      if (Math.abs(c.x - car.x) < 22 && Math.abs(c.y - carScreenY) < 35) {
+      const dx = Math.abs(c.x - car.x);
+      const dy = Math.abs(c.y - carScreenY);
+      if (dx < 24 && dy < 30) {
         c.collected = true;
-        car.fuel = Math.min(FUEL_MAX, car.fuel + 10);
+        const isGood = c.type === "good";
+        const fuelChange = isGood ? 12 : -15;
+        car.fuel = Math.max(0, Math.min(FUEL_MAX, car.fuel + fuelChange));
+        const particleColor = isGood ? "#22c55e" : "#ef4444";
         for (let i = 0; i < 12; i++) {
           g.particles.push({
             x: c.x, y: c.y,
             vx: (Math.random() - 0.5) * 4,
             vy: -Math.random() * 3 - 1,
             r: 2 + Math.random() * 2.5,
-            color: Math.random() > 0.5 ? "#fbbf24" : "#fde68a",
+            color: particleColor,
             life: 25, maxLife: 25,
           });
         }
@@ -801,7 +798,23 @@ export default function DcBugRun() {
     g.dist = 0;
     g.score = 0;
     g.frame = 0;
-    g.coins = terrain.filter((_, i) => i % 18 === 8).map(p => ({ x: p.x, y: p.y - 32, collected: false }));
+    
+    // Initial coins — mix of ground, elevated, good and bad
+    g.coins = [];
+    terrain.forEach((p, i) => {
+      if (i % 18 === 8) {
+        const isElevated = Math.random() > 0.5;
+        const coinType = Math.random() > 0.3 ? "good" : "bad";
+        g.coins.push({
+          x: p.x,
+          y: isElevated ? p.y - 55 : p.y - 32,
+          collected: false,
+          type: coinType,
+          elevated: isElevated,
+        });
+      }
+    });
+    
     g.particles = [];
     g.running = true;
     setScore(0);
@@ -825,7 +838,9 @@ export default function DcBugRun() {
     const onDown = (e) => {
       if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = true;
       if (e.code === "ArrowLeft" || e.code === "KeyA") keysRef.current.brake = true;
-      if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") keysRef.current.jump = true;
+      if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") {
+        keysRef.current.jump = true;
+      }
       if ((e.code === "Space" || e.code === "Enter") && gameState !== "playing") {
         e.preventDefault();
         if (gameState === "gameover" && document.activeElement?.id === "hill-name-input") return;
@@ -835,7 +850,9 @@ export default function DcBugRun() {
     const onUp = (e) => {
       if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = false;
       if (e.code === "ArrowLeft" || e.code === "KeyA") keysRef.current.brake = false;
-      if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") keysRef.current.jump = false;
+      if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") {
+        keysRef.current.jump = false;
+      }
     };
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
@@ -851,19 +868,25 @@ export default function DcBugRun() {
     const terrain = generateTerrain(0, TERRAIN_LEN, g.seed);
     g.terrain = terrain;
     g.terrainEnd = terrain[terrain.length - 1].x;
-    g.coins = terrain.filter((_, i) => i % 18 === 8).map(p => ({ x: p.x, y: p.y - 32, collected: false }));
+    g.coins = terrain.filter((_, i) => i % 18 === 8).map(p => ({
+      x: p.x,
+      y: Math.random() > 0.5 ? p.y - 55 : p.y - 32,
+      collected: false,
+      type: Math.random() > 0.3 ? "good" : "bad",
+      elevated: Math.random() > 0.5,
+    }));
     drawScene(ctx, canvas);
   }, [drawScene]);
 
   useEffect(() => () => { cancelAnimationFrame(gameRef.current.animId); }, []);
 
   // ─── Touch buttons ───
-  const gasStart  = useCallback(() => { keysRef.current.gas   = true;  }, []);
-  const gasEnd    = useCallback(() => { keysRef.current.gas   = false; }, []);
-  const brakeStart= useCallback(() => { keysRef.current.brake = true;  }, []);
+  const gasStart  = useCallback(() => { keysRef.current.gas = true; }, []);
+  const gasEnd    = useCallback(() => { keysRef.current.gas = false; }, []);
+  const brakeStart= useCallback(() => { keysRef.current.brake = true; }, []);
   const brakeEnd  = useCallback(() => { keysRef.current.brake = false; }, []);
-  const jumpStart = useCallback(() => { keysRef.current.jump  = true;  }, []);
-  const jumpEnd   = useCallback(() => { keysRef.current.jump  = false; }, []);
+  const jumpStart = useCallback(() => { keysRef.current.jump = true; }, []);
+  const jumpEnd   = useCallback(() => { keysRef.current.jump = false; keysRef.current.jumpPressed = false; }, []);
 
   const fuelPct = fuel / FUEL_MAX;
 
@@ -1178,6 +1201,28 @@ export default function DcBugRun() {
         .touch-btn-gas:active {
           background: rgba(34,197,94,0.25);
         }
+        .coin-legend {
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          padding: 8px 22px;
+          background: rgba(6, 13, 31, 0.5);
+          border-top: 1px solid rgba(59, 130, 246, 0.06);
+          font-size: 11px;
+        }
+        .coin-legend-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: #94a3b8;
+        }
+        .coin-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+        }
+        .coin-dot.good { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+        .coin-dot.bad { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
       `}</style>
 
       <div className="container">
@@ -1220,7 +1265,8 @@ export default function DcBugRun() {
                 <div className="bugrun-overlay-sub">
                   {gameState === "menu" ? (
                     <>Acelere morro acima, colete moedas e pule nos picos!<br />
-                    Use ← Freio | → Gás | ↑ Pular (ou os botões na tela)</>
+                    🟢 Moeda verde = +combustível | 🔴 Moeda vermelha = -combustível<br />
+                    Use ← Freio | → Gás | ↑ Pular</>
                   ) : (
                     <>
                       Distância: <strong>{score}m</strong> | Recorde: <strong>{highScore}m</strong><br />
@@ -1247,7 +1293,7 @@ export default function DcBugRun() {
                 <button className="bugrun-btn" onClick={handleStart}>
                   {gameState === "menu" ? "▶ Jogar" : "↻ Tentar de novo"}
                 </button>
-                <div className="bugrun-hint">← Freio | → Gás | ↑ Pular | Moedas = combustível</div>
+                <div className="bugrun-hint">← Freio | → Gás | ↑ Pular | 🟢 +combustível | 🔴 -combustível</div>
               </div>
             )}
           </div>
@@ -1275,6 +1321,18 @@ export default function DcBugRun() {
               >GÁS ▶</button>
             </div>
           )}
+
+          {/* Coin legend */}
+          <div className="coin-legend">
+            <div className="coin-legend-item">
+              <div className="coin-dot good" />
+              <span>+12% combustível</span>
+            </div>
+            <div className="coin-legend-item">
+              <div className="coin-dot bad" />
+              <span>-15% combustível</span>
+            </div>
+          </div>
 
           {/* Quote bar */}
           <div className="bugrun-quotebar">
