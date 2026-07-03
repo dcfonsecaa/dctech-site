@@ -948,8 +948,14 @@ export default function DcBugRun() {
         .bugrun-canvas {
           display: block;
           width: 100%;
+          aspect-ratio: 720 / 280;
           background: #060d1f;
           border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+        }
+        .canvas-wrapper {
+          position: relative;
+          width: 100%;
+          overflow: hidden;
         }
         .bugrun-overlay {
           position: absolute;
@@ -958,34 +964,35 @@ export default function DcBugRun() {
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          background: rgba(3, 7, 18, 0.88);
+          background: rgba(3, 7, 18, 0.92);
           backdrop-filter: blur(8px);
           z-index: 10;
-          padding: 30px;
+          padding: 14px 18px;
           text-align: center;
           animation: fadeIn 0.4s ease;
+          overflow-y: auto;
         }
         @keyframes fadeIn {
           from { opacity: 0; transform: scale(0.95); }
           to { opacity: 1; transform: scale(1); }
         }
         .bugrun-overlay-title {
-          font-size: 28px;
+          font-size: 24px;
           font-weight: 800;
           color: #f8fafc;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
           text-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
         }
         .bugrun-overlay-sub {
-          font-size: 14px;
+          font-size: 13px;
           color: #94a3b8;
-          line-height: 1.7;
-          margin-bottom: 24px;
+          line-height: 1.6;
+          margin-bottom: 18px;
           max-width: 400px;
         }
         .bugrun-overlay-sub strong {
           color: #34d399;
-          font-size: 18px;
+          font-size: 16px;
         }
         .bugrun-newrec {
           display: inline-block;
@@ -1003,7 +1010,7 @@ export default function DcBugRun() {
           50% { transform: scale(1.05); }
         }
         .bugrun-namearea {
-          margin-bottom: 18px;
+          margin-bottom: 14px;
           width: 100%;
           max-width: 280px;
         }
@@ -1033,9 +1040,9 @@ export default function DcBugRun() {
           background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
           color: white;
           border: none;
-          padding: 14px 40px;
+          padding: 12px 34px;
           border-radius: 12px;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 700;
           cursor: pointer;
           transition: all 0.2s;
@@ -1050,9 +1057,19 @@ export default function DcBugRun() {
           transform: translateY(0);
         }
         .bugrun-hint {
-          margin-top: 16px;
-          font-size: 11px;
+          margin-top: 12px;
+          font-size: 10px;
           color: #64748b;
+        }
+        @media (max-width: 480px) {
+          .bugrun-overlay { padding: 10px 14px; }
+          .bugrun-overlay-title { font-size: 19px; margin-bottom: 4px; }
+          .bugrun-overlay-sub { font-size: 11px; margin-bottom: 12px; line-height: 1.45; }
+          .bugrun-overlay-sub strong { font-size: 14px; }
+          .bugrun-btn { padding: 9px 26px; font-size: 13px; }
+          .bugrun-hint { margin-top: 8px; font-size: 9px; }
+          .bugrun-namearea { margin-bottom: 10px; }
+          .bugrun-namearea input { padding: 8px 12px; font-size: 13px; }
         }
         .bugrun-quotebar {
           padding: 10px 22px;
@@ -1145,10 +1162,6 @@ export default function DcBugRun() {
         }
         .bugrun-footer a:hover {
           color: #60a5fa;
-        }
-        .canvas-wrapper {
-          position: relative;
-          width: 100%;
         }
         .touch-controls {
           display: flex;
