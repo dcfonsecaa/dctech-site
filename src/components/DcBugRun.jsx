@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
+// ─── Quotes DCTECH ───
 const QUOTES = [
   { text: '"Subindo colinas como subo pull requests."', author: "— Denis" },
   { text: '"Meu deploy é mais suave que essa descida."', author: "— Denis" },
@@ -13,6 +14,7 @@ const QUOTES = [
   { text: '"Sob medida, igual os sistemas que entrego."', author: "— Denis" },
 ];
 
+// ─── Terrain generation ───
 const SEGMENT = 6;
 const TERRAIN_LEN = 600;
 
@@ -26,13 +28,15 @@ function generateTerrain(startX, count, seed, dist = 0) {
   let y = 160;
   let angle = 0;
   const diff = getDifficultyMultiplier(dist);
-  const amp1 = 0.04 * diff;
-  const amp2 = 0.03 * diff;
-  const maxAngle = 0.18 * Math.min(diff, 2.2);
+  const amp1 = 0.025 * diff;
+  const amp2 = 0.018 * diff;
+  const maxAngle = 0.12 * Math.min(diff, 1.8);
+
   for (let i = 0; i < count; i++) {
     const worldX = startX + i * SEGMENT;
     const localDist = worldX - 120;
     const localDiff = getDifficultyMultiplier(localDist);
+
     angle += (Math.sin(worldX * 0.008 + seed) * amp1 * localDiff +
               Math.sin(worldX * 0.003 + seed * 1.7) * amp2 * localDiff);
     angle = Math.max(-maxAngle * localDiff, Math.min(maxAngle * localDiff, angle));
@@ -61,7 +65,7 @@ function getTerrainAngle(terrain, worldX) {
 
 const CANVAS_W = 720;
 const CANVAS_H = 280;
-const FUEL_MAX = 100;
+const FUEL_MAX = 200;
 const CAR_W = 58;
 const CAR_H = 24;
 const WHEEL_R = 13;
@@ -194,11 +198,13 @@ export default function DcBugRun() {
     setQuoteText(msg);
     setQuoteVisible(true);
   }, []);
-    const drawScene = useCallback((ctx, canvas) => {
+
+  const drawScene = useCallback((ctx, canvas) => {
     const g = gameRef.current;
     const car = g.car;
     const camX = car.x - 160;
 
+    // Sky gradient
     const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
     sky.addColorStop(0, "#030712");
     sky.addColorStop(0.3, "#0a1628");
@@ -207,6 +213,7 @@ export default function DcBugRun() {
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Moon
     ctx.save();
     ctx.shadowColor = "rgba(255,255,255,0.3)";
     ctx.shadowBlur = 30;
@@ -224,6 +231,7 @@ export default function DcBugRun() {
     ctx.fill();
     ctx.restore();
 
+    // Stars
     g.stars.forEach(s => {
       const twinkle = Math.sin(g.frame * s.twinkleSpeed + s.twinkle) * 0.3 + 0.7;
       const sx = ((s.x - camX * 0.1) % canvas.width + canvas.width) % canvas.width;
@@ -242,6 +250,7 @@ export default function DcBugRun() {
     });
     ctx.globalAlpha = 1;
 
+    // Mountains
     g.mountains.forEach(m => {
       const mx = ((m.x - camX * 0.05) % (canvas.width + 400) + (canvas.width + 400)) % (canvas.width + 400) - 200;
       ctx.fillStyle = m.color;
@@ -253,6 +262,7 @@ export default function DcBugRun() {
       ctx.fill();
     });
 
+    // Clouds
     g.clouds.forEach(c => {
       c.x -= c.speed;
       if (c.x < -c.w) c.x = canvas.width + c.w;
@@ -271,6 +281,7 @@ export default function DcBugRun() {
     });
     ctx.globalAlpha = 1;
 
+    // Wind visual
     if (g.wind.active) {
       const windAlpha = 0.15 + Math.sin(g.frame * 0.1) * 0.1;
       ctx.globalAlpha = windAlpha;
@@ -290,6 +301,7 @@ export default function DcBugRun() {
       ctx.globalAlpha = 1;
     }
 
+    // Terrain
     const terrain = g.terrain;
     if (terrain.length < 2) return;
 
@@ -339,6 +351,7 @@ export default function DcBugRun() {
       }
     }
 
+    // Boost zones
     g.boostZones.forEach(bz => {
       if (bz.x < camX - 50 || bz.x > camX + canvas.width + 50) return;
       const bx = bz.x - camX;
@@ -365,6 +378,7 @@ export default function DcBugRun() {
       ctx.restore();
     });
 
+    // Rocks
     g.rocks.forEach(r => {
       if (r.x < camX - 50 || r.x > camX + canvas.width + 50) return;
       const rx = r.x - camX;
@@ -391,6 +405,7 @@ export default function DcBugRun() {
       ctx.restore();
     });
 
+    // Death wall
     if (g.deathWall.active) {
       const dwX = g.deathWall.x - camX;
       if (dwX > -100 && dwX < canvas.width) {
@@ -411,6 +426,7 @@ export default function DcBugRun() {
       }
     }
 
+    // Coins
     g.coins.forEach(c => {
       if (c.collected) return;
       const sx = c.x - camX;
@@ -451,6 +467,7 @@ export default function DcBugRun() {
       ctx.restore();
     });
 
+    // Combo display
     if (g.combo.inCombo && g.combo.count > 1) {
       const comboX = car.x - camX;
       const groundY = getTerrainY(terrain, car.x);
@@ -468,6 +485,7 @@ export default function DcBugRun() {
       ctx.restore();
     }
 
+    // Particles
     g.particles = g.particles.filter(p => p.life > 0);
     g.particles.forEach(p => {
       ctx.globalAlpha = p.life / p.maxLife;
@@ -482,6 +500,7 @@ export default function DcBugRun() {
     });
     ctx.globalAlpha = 1;
 
+    // Car
     const scrX = car.x - camX;
     const groundY = getTerrainY(terrain, car.x);
     const carBaseY = groundY - WHEEL_R - CAR_H / 2 - 4;
@@ -622,6 +641,7 @@ export default function DcBugRun() {
 
     ctx.restore();
 
+    // Wheels
     [AXLE_FRONT, AXLE_REAR].forEach(ax => {
       const wx = car.x + ax * Math.cos(car.angle);
       const wBase = getTerrainY(terrain, wx);
@@ -685,6 +705,7 @@ export default function DcBugRun() {
       ctx.restore();
     });
 
+    // HUD
     const fuelPct = car.fuel / FUEL_MAX;
     const barW = 120, barH = 10, barX = 14, barY = 14;
     ctx.fillStyle = "rgba(0,0,0,0.5)";
@@ -780,6 +801,8 @@ export default function DcBugRun() {
       });
     }
   }, []);
+
+  // ─── Update physics ───
   const updatePhysics = useCallback(() => {
     const g = gameRef.current;
     if (!g.running) return;
@@ -794,6 +817,7 @@ export default function DcBugRun() {
     const jumpPressed = keysRef.current.jumpPressed;
     const diff = getDifficultyMultiplier(g.dist);
 
+    // Adaptive difficulty
     const skill = g.playerSkill;
     let adaptiveBoost = 1;
     if (skill.gamesPlayed > 5 && skill.avgScore > 200) {
@@ -801,9 +825,10 @@ export default function DcBugRun() {
     }
     const effectiveDiff = diff * adaptiveBoost;
 
-    if (!g.wind.active && Math.random() < 0.002 * effectiveDiff) {
+    // Wind system
+    if (!g.wind.active && Math.random() < 0.0008 * effectiveDiff) {
       g.wind.active = true;
-      g.wind.force = (0.3 + Math.random() * 0.7) * effectiveDiff;
+      g.wind.force = (0.15 + Math.random() * 0.35) * effectiveDiff;
       g.wind.dir = Math.random() > 0.5 ? 1 : -1;
       g.wind.duration = 120 + Math.random() * 180;
       g.wind.timer = 0;
@@ -817,12 +842,13 @@ export default function DcBugRun() {
       }
     }
 
-    if (g.dist / 10 > 50 && !g.deathWall.active) {
+    // Death wall
+    if (g.dist / 10 > 150 && !g.deathWall.active) {
       g.deathWall.active = true;
       g.deathWall.x = car.x - 300;
     }
     if (g.deathWall.active) {
-      g.deathWall.speed = 0.3 + (effectiveDiff - 1) * 0.15;
+      g.deathWall.speed = 0.15 + (effectiveDiff - 1) * 0.08;
       g.deathWall.x += g.deathWall.speed;
       if (g.deathWall.x > car.x - 30) {
         gameOver("deathwall");
@@ -830,10 +856,12 @@ export default function DcBugRun() {
       }
     }
 
+    // Jump mechanics — FIXED: -= instead of +=
     if (jump && !jumpPressed && !car.airborne && car.vx > 0.5) {
       car.vy = -6;
       car.airborne = true;
       keysRef.current.jumpPressed = true;
+
       const now = Date.now();
       if (g.combo.inCombo && now - g.combo.lastJumpTime < 2000) {
         g.combo.count++;
@@ -844,6 +872,7 @@ export default function DcBugRun() {
         setComboCount(1);
       }
       g.combo.lastJumpTime = now;
+
       for (let i = 0; i < 10; i++) {
         g.particles.push({
           x: car.x + (Math.random() - 0.5) * 30,
@@ -862,17 +891,20 @@ export default function DcBugRun() {
 
     if (car.airborne) {
       car.vy += 0.25;
+      // FIXED BUG: -= instead of +=
       car.yOffset -= car.vy;
       const groundY = getTerrainY(terrain, car.x);
       const carBaseY = groundY - WHEEL_R - CAR_H / 2 - 4;
+
       if (car.yOffset <= 0) {
         car.yOffset = 0;
         car.vy = 0;
         car.airborne = false;
+
         if (g.combo.count > 1) {
           const landingAngle = Math.abs(car.angle);
           if (landingAngle < 0.4) {
-            const bonus = Math.min(g.combo.count * 3, 15);
+            const bonus = Math.min(g.combo.count * 5, 25);
             car.fuel = Math.min(FUEL_MAX, car.fuel + bonus);
           } else if (landingAngle > 0.7) {
             car.fuel = Math.max(0, car.fuel - 5);
@@ -881,6 +913,7 @@ export default function DcBugRun() {
         g.combo.inCombo = false;
         g.combo.count = 0;
         setComboCount(0);
+
         for (let i = 0; i < 6; i++) {
           g.particles.push({
             x: car.x + (Math.random() - 0.5) * 20,
@@ -895,10 +928,11 @@ export default function DcBugRun() {
       }
     }
 
+    // Acceleration with progressive fuel cost
     const maxSpeed = 7;
     const steepnessPenalty = Math.abs(terrAngle) > 0.1 ? 1 + Math.abs(terrAngle) * 3 : 1;
-    const fuelConsumptionRate = 0.12 * effectiveDiff * steepnessPenalty;
-    
+    const fuelConsumptionRate = 0.05 * effectiveDiff * steepnessPenalty;
+
     if (gas) {
       car.vx += Math.cos(terrAngle) * 0.2;
       car.fuel -= fuelConsumptionRate;
@@ -907,6 +941,7 @@ export default function DcBugRun() {
       car.vx -= 0.3;
     }
 
+    // Boost zones
     let inBoostZone = false;
     g.boostZones.forEach(bz => {
       if (car.x > bz.x - 20 && car.x < bz.x + 20 && car.airborne) {
@@ -947,6 +982,7 @@ export default function DcBugRun() {
       return;
     }
 
+    // Rock collision
     const carScreenY = getTerrainY(terrain, car.x) - WHEEL_R - CAR_H / 2 - 4 - car.yOffset;
     g.rocks.forEach(r => {
       if (r.x < car.x - 30 || r.x > car.x + 30) return;
@@ -967,15 +1003,16 @@ export default function DcBugRun() {
       if (newScore > 0 && newScore % 50 === 0) showQuote();
     }
 
+    // Generate new terrain and entities
     if (car.x + CANVAS_W > g.terrainEnd - SEGMENT * 10) {
       const extra = generateTerrain(g.terrainEnd, 200, g.seed, g.dist);
       g.terrain = [...g.terrain.slice(-200), ...extra];
       g.terrainEnd = g.terrain[g.terrain.length - 1].x;
-      
+
       extra.forEach((p, i) => {
-        if (i % 18 === 8) {
+        if (i % 14 === 7) {
           const isElevated = Math.random() > 0.35;
-          const badCoinChance = Math.min(0.3 + (effectiveDiff - 1) * 0.15, 0.7);
+          const badCoinChance = Math.min(0.15 + (effectiveDiff - 1) * 0.08, 0.4);
           const coinType = Math.random() > badCoinChance ? "good" : "bad";
           const isMoving = Math.random() > 0.7;
           g.coins.push({
@@ -990,9 +1027,9 @@ export default function DcBugRun() {
           });
         }
       });
-      
+
       extra.forEach((p, i) => {
-        if (i % 45 === 20 && Math.random() < Math.min(0.4 + (effectiveDiff - 1) * 0.2, 0.8)) {
+        if (i % 60 === 30 && Math.random() < Math.min(0.2 + (effectiveDiff - 1) * 0.1, 0.5)) {
           g.rocks.push({
             x: p.x,
             w: 18 + Math.random() * 14,
@@ -1000,7 +1037,7 @@ export default function DcBugRun() {
           });
         }
       });
-      
+
       extra.forEach((p, i) => {
         if (i % 80 === 40 && Math.random() < 0.5) {
           g.boostZones.push({ x: p.x, active: true });
@@ -1013,6 +1050,7 @@ export default function DcBugRun() {
     g.rocks = g.rocks.filter(r => r.x > car.x - CANVAS_W);
     g.boostZones = g.boostZones.filter(bz => bz.x > car.x - CANVAS_W);
 
+    // Coin collection
     g.coins.forEach(c => {
       if (c.collected) return;
       const coinY = c.y + (c.moving ? Math.sin(g.frame * 0.05 + c.movePhase) * 15 : 0);
@@ -1021,7 +1059,7 @@ export default function DcBugRun() {
       if (dx < 24 && dy < 30) {
         c.collected = true;
         const isGood = c.type === "good";
-        const fuelChange = isGood ? 12 : -15;
+        const fuelChange = isGood ? 25 : -10;
         car.fuel = Math.max(0, Math.min(FUEL_MAX, car.fuel + fuelChange));
         const particleColor = isGood ? "#22c55e" : "#ef4444";
         for (let i = 0; i < 12; i++) {
@@ -1038,6 +1076,7 @@ export default function DcBugRun() {
     });
   }, [showQuote, gameOver]);
 
+  // ─── Game loop ───
   const loop = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1049,6 +1088,7 @@ export default function DcBugRun() {
     }
   }, [updatePhysics, drawScene]);
 
+  // ─── Start game ───
   const startGame = useCallback(() => {
     const g = gameRef.current;
     const seed = Math.random() * 100;
@@ -1063,12 +1103,12 @@ export default function DcBugRun() {
     g.wind = { active: false, force: 0, timer: 0, duration: 0, dir: 1 };
     g.deathWall = { x: -200, speed: 0.3, active: false };
     g.combo = { count: 0, lastJumpTime: 0, inCombo: false };
-    
+
     g.coins = [];
     terrain.forEach((p, i) => {
-      if (i % 18 === 8) {
+      if (i % 14 === 7) {
         const isElevated = Math.random() > 0.5;
-        const coinType = Math.random() > 0.7 ? "good" : "bad";
+        const coinType = Math.random() > 0.35 ? "good" : "bad";
         const isMoving = Math.random() > 0.7;
         g.coins.push({
           x: p.x,
@@ -1082,7 +1122,7 @@ export default function DcBugRun() {
         });
       }
     });
-    
+
     g.rocks = [];
     g.boostZones = [];
     g.particles = [];
@@ -1105,6 +1145,7 @@ export default function DcBugRun() {
     startGame();
   }, [gameState, playerName, score, addToRanking, startGame]);
 
+  // ─── Controls ───
   useEffect(() => {
     const onDown = (e) => {
       if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = true;
@@ -1130,6 +1171,7 @@ export default function DcBugRun() {
     return () => { window.removeEventListener("keydown", onDown); window.removeEventListener("keyup", onUp); };
   }, [gameState, handleStart]);
 
+  // ─── Initial draw ───
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1155,6 +1197,7 @@ export default function DcBugRun() {
 
   useEffect(() => () => { cancelAnimationFrame(gameRef.current.animId); }, []);
 
+  // ─── Touch buttons ───
   const gasStart  = useCallback(() => { keysRef.current.gas = true; }, []);
   const gasEnd    = useCallback(() => { keysRef.current.gas = false; }, []);
   const brakeStart= useCallback(() => { keysRef.current.brake = true; }, []);
@@ -1534,6 +1577,7 @@ export default function DcBugRun() {
       <div className="container">
         <div className="bugrun-card">
 
+          {/* Header */}
           <div className="bugrun-header">
             <div className="bugrun-title">
               <span>🚗</span> DC HILL CLIMB
@@ -1554,6 +1598,7 @@ export default function DcBugRun() {
             </div>
           </div>
 
+          {/* Canvas with overlay */}
           <div className="canvas-wrapper">
             <canvas
               ref={canvasRef}
@@ -1604,6 +1649,7 @@ export default function DcBugRun() {
             )}
           </div>
 
+          {/* Touch controls */}
           {gameState === "playing" && (
             <div className="touch-controls">
               <button
@@ -1627,6 +1673,7 @@ export default function DcBugRun() {
             </div>
           )}
 
+          {/* Coin legend */}
           <div className="coin-legend">
             <div className="coin-legend-item">
               <div className="coin-dot good" />
@@ -1638,6 +1685,7 @@ export default function DcBugRun() {
             </div>
           </div>
 
+          {/* Boost legend */}
           <div className="boost-legend">
             <div className="boost-legend-item">
               <span className="boost-icon">⚡</span>
@@ -1645,12 +1693,14 @@ export default function DcBugRun() {
             </div>
           </div>
 
+          {/* Quote bar */}
           <div className="bugrun-quotebar">
             <div className={`bugrun-quote ${quoteVisible ? "visible" : ""}`}>
               {quoteText}
             </div>
           </div>
 
+          {/* Ranking */}
           <div className="bugrun-ranking">
             <div className="bugrun-ranking-title">🏆 TOP 10 HILL CLIMBERS</div>
             <ul className="bugrun-ranking-list">
@@ -1670,6 +1720,7 @@ export default function DcBugRun() {
             </ul>
           </div>
 
+          {/* Footer */}
           <div className="bugrun-footer">
             <span>DCTECH — SOLUCOES EM SISTEMAS</span>
             <a href="#contato">Precisa de um dev? →</a>
