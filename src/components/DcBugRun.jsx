@@ -780,3 +780,902 @@ export default function DcBugRun() {
       });
     }
   }, []);
+  const updatePhysics = useCallback(() => {
+    const g = gameRef.current;
+    if (!g.running) return;
+    const car = g.car;
+    const terrain = g.terrain;
+    g.frame++;
+
+    const terrAngle = getTerrainAngle(terrain, car.x);
+    const gas = keysRef.current.gas;
+    const brake = keysRef.current.brake;
+    const jump = keysRef.current.jump;
+    const jumpPressed = keysRef.current.jumpPressed;
+    const diff = getDifficultyMultiplier(g.dist);
+
+    const skill = g.playerSkill;
+    let adaptiveBoost = 1;
+    if (skill.gamesPlayed > 5 && skill.avgScore > 200) {
+      adaptiveBoost = 1 + Math.min((skill.avgScore - 200) / 1000, 0.5);
+    }
+    const effectiveDiff = diff * adaptiveBoost;
+
+    if (!g.wind.active && Math.random() < 0.002 * effectiveDiff) {
+      g.wind.active = true;
+      g.wind.force = (0.3 + Math.random() * 0.7) * effectiveDiff;
+      g.wind.dir = Math.random() > 0.5 ? 1 : -1;
+      g.wind.duration = 120 + Math.random() * 180;
+      g.wind.timer = 0;
+    }
+    if (g.wind.active) {
+      g.wind.timer++;
+      car.angle += g.wind.force * g.wind.dir * 0.008;
+      car.vx += g.wind.force * g.wind.dir * 0.02;
+      if (g.wind.timer >= g.wind.duration) {
+        g.wind.active = false;
+      }
+    }
+
+    if (g.dist / 10 > 50 && !g.deathWall.active) {
+      g.deathWall.active = true;
+      g.deathWall.x = car.x - 300;
+    }
+    if (g.deathWall.active) {
+      g.deathWall.speed = 0.3 + (effectiveDiff - 1) * 0.15;
+      g.deathWall.x += g.deathWall.speed;
+      if (g.deathWall.x > car.x - 30) {
+        gameOver("deathwall");
+        return;
+      }
+    }
+
+    if (jump && !jumpPressed && !car.airborne && car.vx > 0.5) {
+      car.vy = -6;
+      car.airborne = true;
+      keysRef.current.jumpPressed = true;
+      const now = Date.now();
+      if (g.combo.inCombo && now - g.combo.lastJumpTime < 2000) {
+        g.combo.count++;
+        setComboCount(g.combo.count);
+      } else {
+        g.combo.count = 1;
+        g.combo.inCombo = true;
+        setComboCount(1);
+      }
+      g.combo.lastJumpTime = now;
+      for (let i = 0; i < 10; i++) {
+        g.particles.push({
+          x: car.x + (Math.random() - 0.5) * 30,
+          y: getTerrainY(terrain, car.x),
+          vx: (Math.random() - 0.5) * 3,
+          vy: -Math.random() * 2 - 0.5,
+          r: 2 + Math.random() * 2,
+          color: "rgba(148, 163, 184, 0.6)",
+          life: 15, maxLife: 15,
+        });
+      }
+    }
+    if (!jump) {
+      keysRef.current.jumpPressed = false;
+    }
+
+    if (car.airborne) {
+      car.vy += 0.25;
+      car.yOffset -= car.vy;
+      const groundY = getTerrainY(terrain, car.x);
+      const carBaseY = groundY - WHEEL_R - CAR_H / 2 - 4;
+      if (car.yOffset <= 0) {
+        car.yOffset = 0;
+        car.vy = 0;
+        car.airborne = false;
+        if (g.combo.count > 1) {
+          const landingAngle = Math.abs(car.angle);
+          if (landingAngle < 0.4) {
+            const bonus = Math.min(g.combo.count * 3, 15);
+            car.fuel = Math.min(FUEL_MAX, car.fuel + bonus);
+          } else if (landingAngle > 0.7) {
+            car.fuel = Math.max(0, car.fuel - 5);
+          }
+        }
+        g.combo.inCombo = false;
+        g.combo.count = 0;
+        setComboCount(0);
+        for (let i = 0; i < 6; i++) {
+          g.particles.push({
+            x: car.x + (Math.random() - 0.5) * 20,
+            y: groundY,
+            vx: (Math.random() - 0.5) * 2,
+            vy: -Math.random() * 1.5,
+            r: 2 + Math.random(),
+            color: "rgba(100, 116, 139, 0.5)",
+            life: 10, maxLife: 10,
+          });
+        }
+      }
+    }
+
+    const maxSpeed = 7;
+    const steepnessPenalty = Math.abs(terrAngle) > 0.1 ? 1 + Math.abs(terrAngle) * 3 : 1;
+    const fuelConsumptionRate = 0.12 * effectiveDiff * steepnessPenalty;
+    
+    if (gas) {
+      car.vx += Math.cos(terrAngle) * 0.2;
+      car.fuel -= fuelConsumptionRate;
+    }
+    if (brake) {
+      car.vx -= 0.3;
+    }
+
+    let inBoostZone = false;
+    g.boostZones.forEach(bz => {
+      if (car.x > bz.x - 20 && car.x < bz.x + 20 && car.airborne) {
+        inBoostZone = true;
+        car.vx += 0.4;
+        car.fuel -= 0.25;
+      }
+    });
+    setBoostActive(inBoostZone);
+
+    if (!car.airborne) {
+      car.vx += Math.sin(terrAngle) * (-0.14);
+    }
+
+    car.vx *= 0.982;
+    car.vx = Math.max(-2.5, Math.min(maxSpeed, car.vx));
+
+    car.x += car.vx;
+    if (car.x < 80) { car.x = 80; car.vx = 0; }
+
+    if (!car.airborne) {
+      const targetAngle = terrAngle;
+      car.angle += (targetAngle - car.angle) * 0.14;
+    } else {
+      car.angle += car.vx * 0.008;
+      car.angle = Math.max(-0.8, Math.min(0.8, car.angle));
+    }
+
+    if (Math.abs(car.angle) > 1.15 && !car.airborne) {
+      gameOver("flip");
+      return;
+    }
+
+    car.fuel = Math.max(0, car.fuel);
+    setFuel(car.fuel);
+    if (car.fuel <= 0 && !car.airborne) {
+      gameOver("fuel");
+      return;
+    }
+
+    const carScreenY = getTerrainY(terrain, car.x) - WHEEL_R - CAR_H / 2 - 4 - car.yOffset;
+    g.rocks.forEach(r => {
+      if (r.x < car.x - 30 || r.x > car.x + 30) return;
+      const dx = Math.abs(r.x - car.x);
+      const dy = Math.abs((getTerrainY(terrain, r.x) - r.h / 2) - carScreenY);
+      if (dx < r.w / 2 + CAR_W / 3 && dy < r.h / 2 + CAR_H / 2) {
+        if (car.yOffset < r.h + 10) {
+          gameOver("rock");
+        }
+      }
+    });
+
+    g.dist = Math.max(g.dist, car.x - 120);
+    const newScore = Math.floor(g.dist / 10);
+    if (newScore !== g.score) {
+      g.score = newScore;
+      setScore(newScore);
+      if (newScore > 0 && newScore % 50 === 0) showQuote();
+    }
+
+    if (car.x + CANVAS_W > g.terrainEnd - SEGMENT * 10) {
+      const extra = generateTerrain(g.terrainEnd, 200, g.seed, g.dist);
+      g.terrain = [...g.terrain.slice(-200), ...extra];
+      g.terrainEnd = g.terrain[g.terrain.length - 1].x;
+      
+      extra.forEach((p, i) => {
+        if (i % 18 === 8) {
+          const isElevated = Math.random() > 0.35;
+          const badCoinChance = Math.min(0.3 + (effectiveDiff - 1) * 0.15, 0.7);
+          const coinType = Math.random() > badCoinChance ? "good" : "bad";
+          const isMoving = Math.random() > 0.7;
+          g.coins.push({
+            x: p.x,
+            y: isElevated ? p.y - 55 : p.y - 32,
+            collected: false,
+            type: coinType,
+            elevated: isElevated,
+            moving: isMoving,
+            movePhase: Math.random() * Math.PI * 2,
+            blinkSpeed: 0.03 + Math.random() * 0.04,
+          });
+        }
+      });
+      
+      extra.forEach((p, i) => {
+        if (i % 45 === 20 && Math.random() < Math.min(0.4 + (effectiveDiff - 1) * 0.2, 0.8)) {
+          g.rocks.push({
+            x: p.x,
+            w: 18 + Math.random() * 14,
+            h: 14 + Math.random() * 12,
+          });
+        }
+      });
+      
+      extra.forEach((p, i) => {
+        if (i % 80 === 40 && Math.random() < 0.5) {
+          g.boostZones.push({ x: p.x, active: true });
+        }
+      });
+    }
+
+    g.terrain = g.terrain.filter(p => p.x > car.x - CANVAS_W);
+    g.coins = g.coins.filter(c => c.x > car.x - CANVAS_W);
+    g.rocks = g.rocks.filter(r => r.x > car.x - CANVAS_W);
+    g.boostZones = g.boostZones.filter(bz => bz.x > car.x - CANVAS_W);
+
+    g.coins.forEach(c => {
+      if (c.collected) return;
+      const coinY = c.y + (c.moving ? Math.sin(g.frame * 0.05 + c.movePhase) * 15 : 0);
+      const dx = Math.abs(c.x - car.x);
+      const dy = Math.abs(coinY - carScreenY);
+      if (dx < 24 && dy < 30) {
+        c.collected = true;
+        const isGood = c.type === "good";
+        const fuelChange = isGood ? 12 : -15;
+        car.fuel = Math.max(0, Math.min(FUEL_MAX, car.fuel + fuelChange));
+        const particleColor = isGood ? "#22c55e" : "#ef4444";
+        for (let i = 0; i < 12; i++) {
+          g.particles.push({
+            x: c.x, y: coinY,
+            vx: (Math.random() - 0.5) * 4,
+            vy: -Math.random() * 3 - 1,
+            r: 2 + Math.random() * 2.5,
+            color: particleColor,
+            life: 25, maxLife: 25,
+          });
+        }
+      }
+    });
+  }, [showQuote, gameOver]);
+
+  const loop = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    updatePhysics();
+    drawScene(ctx, canvas);
+    if (gameRef.current.running) {
+      gameRef.current.animId = requestAnimationFrame(loop);
+    }
+  }, [updatePhysics, drawScene]);
+
+  const startGame = useCallback(() => {
+    const g = gameRef.current;
+    const seed = Math.random() * 100;
+    g.seed = seed;
+    const terrain = generateTerrain(0, TERRAIN_LEN, seed);
+    g.terrain = terrain;
+    g.terrainEnd = terrain[terrain.length - 1].x;
+    g.car = { x: 120, vx: 0, angle: 0, angularV: 0, fuel: FUEL_MAX, flipped: false, vy: 0, airborne: false, yOffset: 0 };
+    g.dist = 0;
+    g.score = 0;
+    g.frame = 0;
+    g.wind = { active: false, force: 0, timer: 0, duration: 0, dir: 1 };
+    g.deathWall = { x: -200, speed: 0.3, active: false };
+    g.combo = { count: 0, lastJumpTime: 0, inCombo: false };
+    
+    g.coins = [];
+    terrain.forEach((p, i) => {
+      if (i % 18 === 8) {
+        const isElevated = Math.random() > 0.5;
+        const coinType = Math.random() > 0.7 ? "good" : "bad";
+        const isMoving = Math.random() > 0.7;
+        g.coins.push({
+          x: p.x,
+          y: isElevated ? p.y - 55 : p.y - 32,
+          collected: false,
+          type: coinType,
+          elevated: isElevated,
+          moving: isMoving,
+          movePhase: Math.random() * Math.PI * 2,
+          blinkSpeed: 0.03 + Math.random() * 0.04,
+        });
+      }
+    });
+    
+    g.rocks = [];
+    g.boostZones = [];
+    g.particles = [];
+    g.running = true;
+    setScore(0);
+    setFuel(FUEL_MAX);
+    setGameState("playing");
+    setQuoteVisible(false);
+    setComboCount(0);
+    setBoostActive(false);
+    setTimeout(() => showQuote(), 800);
+    g.animId = requestAnimationFrame(loop);
+  }, [showQuote, loop]);
+
+  const handleStart = useCallback(() => {
+    if (gameState === "gameover" && playerName.trim()) {
+      addToRanking(playerName, score);
+    }
+    setPlayerName("");
+    startGame();
+  }, [gameState, playerName, score, addToRanking, startGame]);
+
+  useEffect(() => {
+    const onDown = (e) => {
+      if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = true;
+      if (e.code === "ArrowLeft" || e.code === "KeyA") keysRef.current.brake = true;
+      if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") {
+        keysRef.current.jump = true;
+      }
+      if ((e.code === "Space" || e.code === "Enter") && gameState !== "playing") {
+        e.preventDefault();
+        if (gameState === "gameover" && document.activeElement?.id === "hill-name-input") return;
+        handleStart();
+      }
+    };
+    const onUp = (e) => {
+      if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = false;
+      if (e.code === "ArrowLeft" || e.code === "KeyA") keysRef.current.brake = false;
+      if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") {
+        keysRef.current.jump = false;
+      }
+    };
+    window.addEventListener("keydown", onDown);
+    window.addEventListener("keyup", onUp);
+    return () => { window.removeEventListener("keydown", onDown); window.removeEventListener("keyup", onUp); };
+  }, [gameState, handleStart]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const g = gameRef.current;
+    const terrain = generateTerrain(0, TERRAIN_LEN, g.seed);
+    g.terrain = terrain;
+    g.terrainEnd = terrain[terrain.length - 1].x;
+    g.coins = terrain.filter((_, i) => i % 18 === 8).map((p, idx) => ({
+      x: p.x,
+      y: Math.random() > 0.5 ? p.y - 55 : p.y - 32,
+      collected: false,
+      type: Math.random() > 0.7 ? "good" : "bad",
+      elevated: Math.random() > 0.5,
+      moving: Math.random() > 0.7,
+      movePhase: idx,
+      blinkSpeed: 0.03 + Math.random() * 0.04,
+    }));
+    g.rocks = [];
+    g.boostZones = [];
+    drawScene(ctx, canvas);
+  }, [drawScene]);
+
+  useEffect(() => () => { cancelAnimationFrame(gameRef.current.animId); }, []);
+
+  const gasStart  = useCallback(() => { keysRef.current.gas = true; }, []);
+  const gasEnd    = useCallback(() => { keysRef.current.gas = false; }, []);
+  const brakeStart= useCallback(() => { keysRef.current.brake = true; }, []);
+  const brakeEnd  = useCallback(() => { keysRef.current.brake = false; }, []);
+  const jumpStart = useCallback(() => { keysRef.current.jump = true; }, []);
+  const jumpEnd   = useCallback(() => { keysRef.current.jump = false; keysRef.current.jumpPressed = false; }, []);
+
+  const fuelPct = fuel / FUEL_MAX;
+
+  return (
+    <section className="dc-bugrun">
+      <style>{`
+        .dc-bugrun {
+          width: 100%;
+          display: flex;
+          justify-content: center;
+          padding: 20px 0;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .dc-bugrun .container {
+          width: 100%;
+          max-width: 740px;
+          padding: 0 10px;
+        }
+        .bugrun-card {
+          background: linear-gradient(145deg, #0a0f1a 0%, #0d1525 50%, #0a1220 100%);
+          border-radius: 20px;
+          border: 1px solid rgba(59, 130, 246, 0.15);
+          box-shadow: 0 0 60px rgba(59, 130, 246, 0.08), 0 8px 32px rgba(0,0,0,0.4);
+          overflow: hidden;
+        }
+        .bugrun-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 22px;
+          background: linear-gradient(90deg, rgba(30,64,175,0.15) 0%, transparent 100%);
+          border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+        }
+        .bugrun-title {
+          font-size: 18px;
+          font-weight: 800;
+          color: #e2e8f0;
+          letter-spacing: 1.5px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .bugrun-title span { font-size: 22px; }
+        .bugrun-score {
+          font-size: 15px;
+          font-weight: 700;
+          color: #34d399;
+          font-family: monospace;
+          background: rgba(52, 211, 153, 0.1);
+          padding: 4px 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+        .bugrun-rec {
+          font-size: 12px;
+          color: #94a3b8;
+          font-family: monospace;
+        }
+        .bugrun-canvas {
+          display: block;
+          width: 100%;
+          aspect-ratio: 720 / 280;
+          background: #060d1f;
+          border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+        }
+        .canvas-wrapper {
+          position: relative;
+          width: 100%;
+          overflow: hidden;
+        }
+        .bugrun-overlay {
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: rgba(3, 7, 18, 0.92);
+          backdrop-filter: blur(8px);
+          z-index: 10;
+          padding: 14px 18px;
+          text-align: center;
+          animation: fadeIn 0.4s ease;
+          overflow-y: auto;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .bugrun-overlay-title {
+          font-size: 24px;
+          font-weight: 800;
+          color: #f8fafc;
+          margin-bottom: 6px;
+          text-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+        }
+        .bugrun-overlay-sub {
+          font-size: 13px;
+          color: #94a3b8;
+          line-height: 1.6;
+          margin-bottom: 18px;
+          max-width: 420px;
+        }
+        .bugrun-overlay-sub strong {
+          color: #34d399;
+          font-size: 16px;
+        }
+        .bugrun-newrec {
+          display: inline-block;
+          background: linear-gradient(90deg, #fbbf24, #f59e0b);
+          color: #1a1a1a;
+          font-weight: 700;
+          padding: 4px 14px;
+          border-radius: 20px;
+          font-size: 13px;
+          margin-top: 8px;
+          animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        .bugrun-namearea {
+          margin-bottom: 14px;
+          width: 100%;
+          max-width: 280px;
+        }
+        .bugrun-namearea label {
+          display: block;
+          font-size: 12px;
+          color: #94a3b8;
+          margin-bottom: 6px;
+          text-align: left;
+        }
+        .bugrun-namearea input {
+          width: 100%;
+          padding: 10px 14px;
+          background: rgba(15, 23, 42, 0.8);
+          border: 1px solid rgba(59, 130, 246, 0.3);
+          border-radius: 10px;
+          color: #e2e8f0;
+          font-size: 14px;
+          outline: none;
+          transition: all 0.2s;
+        }
+        .bugrun-namearea input:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .bugrun-btn {
+          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+          color: white;
+          border: none;
+          padding: 12px 34px;
+          border-radius: 12px;
+          font-size: 15px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s;
+          box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+          letter-spacing: 0.5px;
+        }
+        .bugrun-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 28px rgba(37, 99, 235, 0.4);
+        }
+        .bugrun-btn:active {
+          transform: translateY(0);
+        }
+        .bugrun-hint {
+          margin-top: 12px;
+          font-size: 10px;
+          color: #64748b;
+        }
+        @media (max-width: 480px) {
+          .bugrun-overlay { padding: 10px 14px; }
+          .bugrun-overlay-title { font-size: 19px; margin-bottom: 4px; }
+          .bugrun-overlay-sub { font-size: 11px; margin-bottom: 12px; line-height: 1.45; }
+          .bugrun-overlay-sub strong { font-size: 14px; }
+          .bugrun-btn { padding: 9px 26px; font-size: 13px; }
+          .bugrun-hint { margin-top: 8px; font-size: 9px; }
+          .bugrun-namearea { margin-bottom: 10px; }
+          .bugrun-namearea input { padding: 8px 12px; font-size: 13px; }
+        }
+        .bugrun-quotebar {
+          padding: 10px 22px;
+          background: rgba(30, 64, 175, 0.06);
+          border-top: 1px solid rgba(59, 130, 246, 0.08);
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .bugrun-quote {
+          font-size: 13px;
+          color: #93c5fd;
+          font-style: italic;
+          text-align: center;
+          opacity: 0;
+          transform: translateY(6px);
+          transition: all 0.5s ease;
+          max-width: 600px;
+        }
+        .bugrun-quote.visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .bugrun-ranking {
+          padding: 18px 22px;
+          background: rgba(6, 13, 31, 0.5);
+        }
+        .bugrun-ranking-title {
+          font-size: 13px;
+          font-weight: 700;
+          color: #e2e8f0;
+          margin-bottom: 12px;
+          letter-spacing: 1px;
+        }
+        .bugrun-ranking-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+        .bugrun-ranking-empty {
+          color: #64748b;
+          font-size: 13px;
+          text-align: center;
+          padding: 12px;
+        }
+        .bugrun-ranking-item {
+          display: flex;
+          align-items: center;
+          padding: 8px 12px;
+          border-radius: 8px;
+          margin-bottom: 4px;
+          font-size: 13px;
+          transition: background 0.2s;
+        }
+        .bugrun-ranking-item:hover {
+          background: rgba(59, 130, 246, 0.06);
+        }
+        .bugrun-rank-pos {
+          width: 32px;
+          font-size: 14px;
+        }
+        .bugrun-rank-pos.pos-1 { color: #fbbf24; }
+        .bugrun-rank-pos.pos-2 { color: #cbd5e1; }
+        .bugrun-rank-pos.pos-3 { color: #fb923c; }
+        .bugrun-rank-name {
+          flex: 1;
+          color: #e2e8f0;
+          font-weight: 500;
+        }
+        .bugrun-rank-score {
+          color: #34d399;
+          font-weight: 700;
+          font-family: monospace;
+        }
+        .bugrun-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 22px;
+          background: rgba(6, 13, 31, 0.8);
+          border-top: 1px solid rgba(59, 130, 246, 0.08);
+          font-size: 11px;
+          color: #475569;
+        }
+        .bugrun-footer a {
+          color: #3b82f6;
+          text-decoration: none;
+          transition: color 0.2s;
+        }
+        .bugrun-footer a:hover {
+          color: #60a5fa;
+        }
+        .touch-controls {
+          display: flex;
+          justify-content: space-between;
+          padding: 10px 16px;
+          background: rgba(0,0,0,0.35);
+          border-top: 1px solid rgba(59,130,246,0.08);
+          gap: 8px;
+        }
+        .touch-btn {
+          flex: 1;
+          border-radius: 12px;
+          padding: 14px 20px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          user-select: none;
+          transition: all 0.15s;
+          border: 1px solid;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+        .touch-btn:active {
+          transform: scale(0.96);
+        }
+        .touch-btn-brake {
+          background: rgba(239,68,68,0.12);
+          border-color: rgba(239,68,68,0.25);
+          color: #f87171;
+        }
+        .touch-btn-brake:active {
+          background: rgba(239,68,68,0.25);
+        }
+        .touch-btn-jump {
+          background: rgba(96,165,250,0.12);
+          border-color: rgba(96,165,250,0.25);
+          color: #60a5fa;
+          max-width: 80px;
+        }
+        .touch-btn-jump:active {
+          background: rgba(96,165,250,0.25);
+        }
+        .touch-btn-gas {
+          background: rgba(34,197,94,0.12);
+          border-color: rgba(34,197,94,0.25);
+          color: #34d399;
+        }
+        .touch-btn-gas:active {
+          background: rgba(34,197,94,0.25);
+        }
+        .coin-legend {
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          padding: 8px 22px;
+          background: rgba(6, 13, 31, 0.5);
+          border-top: 1px solid rgba(59, 130, 246, 0.06);
+          font-size: 11px;
+        }
+        .coin-legend-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: #94a3b8;
+        }
+        .coin-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+        }
+        .coin-dot.good { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+        .coin-dot.bad { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+        .boost-legend {
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          padding: 6px 22px;
+          background: rgba(6, 13, 31, 0.3);
+          border-top: 1px solid rgba(59, 130, 246, 0.04);
+          font-size: 11px;
+        }
+        .boost-legend-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: #94a3b8;
+        }
+        .boost-icon {
+          color: #f59e0b;
+          font-size: 12px;
+        }
+      `}</style>
+
+      <div className="container">
+        <div className="bugrun-card">
+
+          <div className="bugrun-header">
+            <div className="bugrun-title">
+              <span>🚗</span> DC HILL CLIMB
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 11, color: "#94a3b8" }}>⛽</span>
+                <div style={{ width: 60, height: 6, background: "rgba(100,116,139,0.25)", borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{
+                    width: `${fuelPct * 100}%`, height: "100%", borderRadius: 3,
+                    background: fuelPct > 0.4 ? "#22c55e" : fuelPct > 0.2 ? "#f59e0b" : "#ef4444",
+                    transition: "width 0.3s, background 0.3s",
+                  }} />
+                </div>
+              </div>
+              <span className="bugrun-score">{score.toString().padStart(4, "0")}m</span>
+              <span className="bugrun-rec">REC: {highScore.toString().padStart(4, "0")}m</span>
+            </div>
+          </div>
+
+          <div className="canvas-wrapper">
+            <canvas
+              ref={canvasRef}
+              width={CANVAS_W}
+              height={CANVAS_H}
+              className="bugrun-canvas"
+            />
+            {gameState !== "playing" && (
+              <div className="bugrun-overlay">
+                <div className="bugrun-overlay-title">
+                  {gameState === "menu" ? "🚗 DC Hill Climb" : gameOverReason === "fuel" ? "⛽ Sem combustivel!" : gameOverReason === "rock" ? "💥 Bateu numa pedra!" : gameOverReason === "deathwall" ? "⏰ O tempo te alcancou!" : "💥 Capotou!"}
+                </div>
+                <div className="bugrun-overlay-sub">
+                  {gameState === "menu" ? (
+                    <>Acelere morro acima, colete moedas e pule nos picos!<br />
+                    🟢 Moeda verde = +combustivel | 🔴 Moeda vermelha = -combustivel<br />
+                    🪨 Pedras no chao so passa pulando!<br />
+                    ⚡ Boost da velocidade mas gasta mais combustivel<br />
+                    Use ← Freio | → Gas | ↑ Pular</>
+                  ) : (
+                    <>
+                      Distancia: <strong>{score}m</strong> | Recorde: <strong>{highScore}m</strong><br />
+                      {score >= highScore && score > 0 ? <span className="bugrun-newrec">🎉 Novo recorde!</span> : null}
+                    </>
+                  )}
+                </div>
+
+                {gameState === "gameover" && (
+                  <div className="bugrun-namearea">
+                    <label>Qual seu primeiro nome?</label>
+                    <input
+                      id="hill-name-input"
+                      type="text"
+                      value={playerName}
+                      onChange={(e) => setPlayerName(e.target.value)}
+                      maxLength={15}
+                      placeholder="ex: Joao"
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                )}
+
+                <button className="bugrun-btn" onClick={handleStart}>
+                  {gameState === "menu" ? "▶ Jogar" : "↻ Tentar de novo"}
+                </button>
+                <div className="bugrun-hint">← Freio | → Gas | ↑ Pular | 🟢 +combustivel | 🔴 -combustivel | 🪨 Pule as pedras</div>
+              </div>
+            )}
+          </div>
+
+          {gameState === "playing" && (
+            <div className="touch-controls">
+              <button
+                className="touch-btn touch-btn-brake"
+                onTouchStart={(e) => { e.preventDefault(); brakeStart(); }}
+                onTouchEnd={(e) => { e.preventDefault(); brakeEnd(); }}
+                onMouseDown={brakeStart} onMouseUp={brakeEnd} onMouseLeave={brakeEnd}
+              >◀ FREIO</button>
+              <button
+                className="touch-btn touch-btn-jump"
+                onTouchStart={(e) => { e.preventDefault(); jumpStart(); }}
+                onTouchEnd={(e) => { e.preventDefault(); jumpEnd(); }}
+                onMouseDown={jumpStart} onMouseUp={jumpEnd} onMouseLeave={jumpEnd}
+              >⬆ PULAR</button>
+              <button
+                className="touch-btn touch-btn-gas"
+                onTouchStart={(e) => { e.preventDefault(); gasStart(); }}
+                onTouchEnd={(e) => { e.preventDefault(); gasEnd(); }}
+                onMouseDown={gasStart} onMouseUp={gasEnd} onMouseLeave={gasEnd}
+              >GAS ▶</button>
+            </div>
+          )}
+
+          <div className="coin-legend">
+            <div className="coin-legend-item">
+              <div className="coin-dot good" />
+              <span>+12% combustivel</span>
+            </div>
+            <div className="coin-legend-item">
+              <div className="coin-dot bad" />
+              <span>-15% combustivel</span>
+            </div>
+          </div>
+
+          <div className="boost-legend">
+            <div className="boost-legend-item">
+              <span className="boost-icon">⚡</span>
+              <span>Boost = velocidade extra (gasta mais combustivel)</span>
+            </div>
+          </div>
+
+          <div className="bugrun-quotebar">
+            <div className={`bugrun-quote ${quoteVisible ? "visible" : ""}`}>
+              {quoteText}
+            </div>
+          </div>
+
+          <div className="bugrun-ranking">
+            <div className="bugrun-ranking-title">🏆 TOP 10 HILL CLIMBERS</div>
+            <ul className="bugrun-ranking-list">
+              {ranking.length === 0 ? (
+                <li className="bugrun-ranking-empty">Ninguem jogou ainda. Seja o primeiro! 🚗</li>
+              ) : (
+                ranking.map((entry, i) => (
+                  <li key={i} className={`bugrun-ranking-item rank-${i + 1}`}>
+                    <span className={`bugrun-rank-pos ${i < 3 ? `pos-${i + 1}` : ""}`}>
+                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                    </span>
+                    <span className="bugrun-rank-name">{entry.name}</span>
+                    <span className="bugrun-rank-score">{entry.score}m</span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+
+          <div className="bugrun-footer">
+            <span>DCTECH — SOLUCOES EM SISTEMAS</span>
+            <a href="#contato">Precisa de um dev? →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
