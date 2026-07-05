@@ -64,7 +64,7 @@ function getTerrainAngle(terrain, worldX) {
 }
 
 const CANVAS_W = 720;
-const CANVAS_H = 280;
+const CANVAS_H = 360; // maior área de jogo
 const FUEL_MAX = 200;
 const CAR_W = 58;
 const CAR_H = 24;
@@ -91,6 +91,7 @@ export default function DcBugRun() {
   const [gameOverReason, setGameOverReason] = useState("");
   const [comboCount, setComboCount] = useState(0);
   const [boostActive, setBoostActive] = useState(false);
+  const [ghostGap, setGhostGap] = useState(0);
 
   const keysRef = useRef({ gas: false, brake: false, jump: false, jumpPressed: false });
 
@@ -110,6 +111,7 @@ export default function DcBugRun() {
     particles: [],
     rocks: [],
     boostZones: [],
+    ghostOffset: 0,
     clouds: Array.from({ length: 8 }, () => ({
       x: Math.random() * CANVAS_W * 2,
       y: Math.random() * 60 + 10,
@@ -186,6 +188,9 @@ export default function DcBugRun() {
     setGameState("gameover");
     setBoostActive(false);
     setComboCount(0);
+    // Fantasma DC sempre "vence" no final — narrativa de rival implacável
+    const finalGap = Math.max(15, Math.round(Math.abs(g.ghostOffset || 0) / 10));
+    setGhostGap(finalGap);
     if (finalScore > highScoreRef.current) {
       setHighScore(finalScore);
       try { localStorage.setItem("dchillclimb_high", finalScore.toString()); } catch {}
@@ -500,6 +505,75 @@ export default function DcBugRun() {
     });
     ctx.globalAlpha = 1;
 
+    // ─── Ghost car (DC) — rival que sempre acaba vencendo ───
+    const ghostX = car.x + g.ghostOffset;
+    const ghostScrX = ghostX - camX;
+    if (ghostScrX > -60 && ghostScrX < canvas.width + 60) {
+      const ghostGroundY = getTerrainY(terrain, ghostX);
+      const ghostAngle = getTerrainAngle(terrain, ghostX);
+      const ghostBaseY = ghostGroundY - WHEEL_R - CAR_H / 2 - 4;
+
+      // Rodas fantasma
+      [AXLE_FRONT, AXLE_REAR].forEach(ax => {
+        const wx = ghostX + ax * Math.cos(ghostAngle);
+        const wBase = getTerrainY(terrain, wx);
+        const wsx = wx - camX;
+        const wsy = wBase - WHEEL_R;
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = "#7c2d12";
+        ctx.beginPath();
+        ctx.arc(wsx, wsy, WHEEL_R, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      ctx.save();
+      ctx.globalAlpha = 0.62;
+      ctx.translate(ghostScrX, ghostBaseY);
+      ctx.rotate(ghostAngle);
+
+      ctx.globalAlpha = 0.15;
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(0, CAR_H / 2 + 8, CAR_W * 0.55, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = 0.65;
+      ctx.fillStyle = "#f97316";
+      ctx.strokeStyle = "#fb923c";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(-CAR_W / 2, -CAR_H / 2, CAR_W, CAR_H, [3, 6, 6, 3]);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#c2410c";
+      ctx.beginPath();
+      ctx.roundRect(-6, -CAR_H / 2 - 14, 26, 16, [5, 5, 0, 0]);
+      ctx.fill();
+
+      // Iniciais DC bem grandes no fantasma
+      ctx.fillStyle = "rgba(255,255,255,0.97)";
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "#f97316";
+      ctx.shadowBlur = 8;
+      ctx.fillText("DC", 0, 2);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      ctx.globalAlpha = 1;
+
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = "#fdba74";
+      ctx.font = "bold 10px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("👻 DC", ghostScrX, ghostBaseY - CAR_H - 18);
+      ctx.restore();
+    }
+
     // Car
     const scrX = car.x - camX;
     const groundY = getTerrainY(terrain, car.x);
@@ -742,6 +816,17 @@ export default function DcBugRun() {
     ctx.textAlign = "left";
     ctx.fillText(`DIF: ${diffLevel.toFixed(1)}x`, 20, 56);
 
+    // Ghost gap indicator
+    const gapMeters = Math.round(g.ghostOffset / 10);
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.roundRect(14, 66, 80, 18, 6);
+    ctx.fill();
+    ctx.fillStyle = gapMeters >= 0 ? "#fb923c" : "#34d399";
+    ctx.font = "bold 10px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(`👻${gapMeters >= 0 ? "+" : ""}${gapMeters}m`, 20, 78);
+
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.beginPath();
     ctx.roundRect(canvas.width - 110, 10, 100, 26, 8);
@@ -800,7 +885,7 @@ export default function DcBugRun() {
         ctx.globalAlpha = 1;
       });
     }
-  }, []);
+  }, [boostActive]);
 
   // ─── Update physics ───
   const updatePhysics = useCallback(() => {
@@ -824,6 +909,12 @@ export default function DcBugRun() {
       adaptiveBoost = 1 + Math.min((skill.avgScore - 200) / 1000, 0.5);
     }
     const effectiveDiff = diff * adaptiveBoost;
+
+    // Ghost car (DC) — rival dinâmico: oscila na frente/atrás, com leve viés
+    // de avanço que garante que, no fim, ele sempre termina "vencendo".
+    const ghostBias = Math.min(g.frame * 0.012, 260);
+    const ghostOsc = Math.sin(g.frame * 0.015) * 110;
+    g.ghostOffset = ghostOsc + ghostBias;
 
     // Wind system
     if (!g.wind.active && Math.random() < 0.0008 * effectiveDiff) {
@@ -856,7 +947,7 @@ export default function DcBugRun() {
       }
     }
 
-    // Jump mechanics — FIXED: -= instead of +=
+    // Jump mechanics
     if (jump && !jumpPressed && !car.airborne && car.vx > 0.5) {
       car.vy = -6;
       car.airborne = true;
@@ -891,7 +982,6 @@ export default function DcBugRun() {
 
     if (car.airborne) {
       car.vy += 0.25;
-      // FIXED BUG: -= instead of +=
       car.yOffset -= car.vy;
       const groundY = getTerrainY(terrain, car.x);
       const carBaseY = groundY - WHEEL_R - CAR_H / 2 - 4;
@@ -1100,6 +1190,7 @@ export default function DcBugRun() {
     g.dist = 0;
     g.score = 0;
     g.frame = 0;
+    g.ghostOffset = 0;
     g.wind = { active: false, force: 0, timer: 0, duration: 0, dir: 1 };
     g.deathWall = { x: -200, speed: 0.3, active: false };
     g.combo = { count: 0, lastJumpTime: 0, inCombo: false };
@@ -1133,6 +1224,7 @@ export default function DcBugRun() {
     setQuoteVisible(false);
     setComboCount(0);
     setBoostActive(false);
+    setGhostGap(0);
     setTimeout(() => showQuote(), 800);
     g.animId = requestAnimationFrame(loop);
   }, [showQuote, loop]);
@@ -1192,6 +1284,7 @@ export default function DcBugRun() {
     }));
     g.rocks = [];
     g.boostZones = [];
+    g.ghostOffset = 0;
     drawScene(ctx, canvas);
   }, [drawScene]);
 
@@ -1233,39 +1326,52 @@ export default function DcBugRun() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 16px 22px;
+          padding: 8px 14px;
+          gap: 8px;
+          flex-wrap: nowrap;
           background: linear-gradient(90deg, rgba(30,64,175,0.15) 0%, transparent 100%);
           border-bottom: 1px solid rgba(59, 130, 246, 0.1);
         }
         .bugrun-title {
-          font-size: 18px;
+          font-size: 13px;
           font-weight: 800;
           color: #e2e8f0;
-          letter-spacing: 1.5px;
+          letter-spacing: 1px;
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 6px;
+          white-space: nowrap;
+          flex-shrink: 0;
         }
-        .bugrun-title span { font-size: 22px; }
+        .bugrun-title span { font-size: 15px; }
         .bugrun-score {
-          font-size: 15px;
+          font-size: 11px;
           font-weight: 700;
           color: #34d399;
           font-family: monospace;
           background: rgba(52, 211, 153, 0.1);
-          padding: 4px 12px;
-          border-radius: 8px;
+          padding: 3px 8px;
+          border-radius: 6px;
           border: 1px solid rgba(52, 211, 153, 0.2);
+          white-space: nowrap;
         }
         .bugrun-rec {
-          font-size: 12px;
+          font-size: 9px;
           color: #94a3b8;
           font-family: monospace;
+          white-space: nowrap;
+        }
+        @media (max-width: 480px) {
+          .bugrun-header { padding: 6px 10px; gap: 5px; }
+          .bugrun-title { font-size: 11px; gap: 4px; }
+          .bugrun-title span { font-size: 13px; }
+          .bugrun-score { font-size: 10px; padding: 2px 6px; }
+          .bugrun-rec { font-size: 8px; }
         }
         .bugrun-canvas {
           display: block;
           width: 100%;
-          aspect-ratio: 720 / 280;
+          aspect-ratio: 720 / 360;
           background: #060d1f;
           border-bottom: 1px solid rgba(59, 130, 246, 0.1);
         }
@@ -1389,16 +1495,16 @@ export default function DcBugRun() {
           .bugrun-namearea input { padding: 8px 12px; font-size: 13px; }
         }
         .bugrun-quotebar {
-          padding: 10px 22px;
+          padding: 6px 16px;
           background: rgba(30, 64, 175, 0.06);
           border-top: 1px solid rgba(59, 130, 246, 0.08);
-          min-height: 44px;
+          min-height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
         .bugrun-quote {
-          font-size: 13px;
+          font-size: 12px;
           color: #93c5fd;
           font-style: italic;
           text-align: center;
@@ -1412,14 +1518,14 @@ export default function DcBugRun() {
           transform: translateY(0);
         }
         .bugrun-ranking {
-          padding: 18px 22px;
+          padding: 12px 18px;
           background: rgba(6, 13, 31, 0.5);
         }
         .bugrun-ranking-title {
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 700;
           color: #e2e8f0;
-          margin-bottom: 12px;
+          margin-bottom: 10px;
           letter-spacing: 1px;
         }
         .bugrun-ranking-list {
@@ -1429,25 +1535,25 @@ export default function DcBugRun() {
         }
         .bugrun-ranking-empty {
           color: #64748b;
-          font-size: 13px;
+          font-size: 12px;
           text-align: center;
-          padding: 12px;
+          padding: 10px;
         }
         .bugrun-ranking-item {
           display: flex;
           align-items: center;
-          padding: 8px 12px;
+          padding: 6px 10px;
           border-radius: 8px;
-          margin-bottom: 4px;
-          font-size: 13px;
+          margin-bottom: 3px;
+          font-size: 12px;
           transition: background 0.2s;
         }
         .bugrun-ranking-item:hover {
           background: rgba(59, 130, 246, 0.06);
         }
         .bugrun-rank-pos {
-          width: 32px;
-          font-size: 14px;
+          width: 28px;
+          font-size: 13px;
         }
         .bugrun-rank-pos.pos-1 { color: #fbbf24; }
         .bugrun-rank-pos.pos-2 { color: #cbd5e1; }
@@ -1466,10 +1572,10 @@ export default function DcBugRun() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 12px 22px;
+          padding: 8px 16px;
           background: rgba(6, 13, 31, 0.8);
           border-top: 1px solid rgba(59, 130, 246, 0.08);
-          font-size: 11px;
+          font-size: 10px;
           color: #475569;
         }
         .bugrun-footer a {
@@ -1483,16 +1589,16 @@ export default function DcBugRun() {
         .touch-controls {
           display: flex;
           justify-content: space-between;
-          padding: 10px 16px;
+          padding: 6px 12px;
           background: rgba(0,0,0,0.35);
           border-top: 1px solid rgba(59,130,246,0.08);
-          gap: 8px;
+          gap: 6px;
         }
         .touch-btn {
           flex: 1;
           border-radius: 12px;
-          padding: 14px 20px;
-          font-size: 13px;
+          padding: 10px 14px;
+          font-size: 12px;
           font-weight: 700;
           cursor: pointer;
           user-select: none;
@@ -1534,43 +1640,29 @@ export default function DcBugRun() {
         .coin-legend {
           display: flex;
           justify-content: center;
-          gap: 20px;
-          padding: 8px 22px;
+          flex-wrap: wrap;
+          gap: 14px;
+          padding: 6px 16px;
           background: rgba(6, 13, 31, 0.5);
           border-top: 1px solid rgba(59, 130, 246, 0.06);
-          font-size: 11px;
+          font-size: 10px;
         }
         .coin-legend-item {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 5px;
           color: #94a3b8;
         }
         .coin-dot {
-          width: 10px;
-          height: 10px;
+          width: 9px;
+          height: 9px;
           border-radius: 50%;
         }
         .coin-dot.good { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
         .coin-dot.bad { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
-        .boost-legend {
-          display: flex;
-          justify-content: center;
-          gap: 20px;
-          padding: 6px 22px;
-          background: rgba(6, 13, 31, 0.3);
-          border-top: 1px solid rgba(59, 130, 246, 0.04);
-          font-size: 11px;
-        }
-        .boost-legend-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          color: #94a3b8;
-        }
         .boost-icon {
           color: #f59e0b;
-          font-size: 12px;
+          font-size: 11px;
         }
       `}</style>
 
@@ -1582,10 +1674,10 @@ export default function DcBugRun() {
             <div className="bugrun-title">
               <span>🚗</span> DC HILL CLIMB
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 11, color: "#94a3b8" }}>⛽</span>
-                <div style={{ width: 60, height: 6, background: "rgba(100,116,139,0.25)", borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 10, color: "#94a3b8" }}>⛽</span>
+                <div style={{ width: 42, height: 5, background: "rgba(100,116,139,0.25)", borderRadius: 3, overflow: "hidden" }}>
                   <div style={{
                     width: `${fuelPct * 100}%`, height: "100%", borderRadius: 3,
                     background: fuelPct > 0.4 ? "#22c55e" : fuelPct > 0.2 ? "#f59e0b" : "#ef4444",
@@ -1594,7 +1686,7 @@ export default function DcBugRun() {
                 </div>
               </div>
               <span className="bugrun-score">{score.toString().padStart(4, "0")}m</span>
-              <span className="bugrun-rec">REC: {highScore.toString().padStart(4, "0")}m</span>
+              <span className="bugrun-rec">REC:{highScore.toString().padStart(4, "0")}m</span>
             </div>
           </div>
 
@@ -1617,11 +1709,14 @@ export default function DcBugRun() {
                     🟢 Moeda verde = +combustivel | 🔴 Moeda vermelha = -combustivel<br />
                     🪨 Pedras no chao so passa pulando!<br />
                     ⚡ Boost da velocidade mas gasta mais combustivel<br />
+                    👻 Fantasma DC compete com você — as vezes na frente, as vezes atras!<br />
                     Use ← Freio | → Gas | ↑ Pular</>
                   ) : (
                     <>
                       Distancia: <strong>{score}m</strong> | Recorde: <strong>{highScore}m</strong><br />
                       {score >= highScore && score > 0 ? <span className="bugrun-newrec">🎉 Novo recorde!</span> : null}
+                      <br />
+                      <span style={{ color: "#fdba74" }}>👻 Fantasma DC venceu por {ghostGap}m!</span>
                     </>
                   )}
                 </div>
@@ -1673,23 +1768,22 @@ export default function DcBugRun() {
             </div>
           )}
 
-          {/* Coin legend */}
+          {/* Legend (moedas + boost combinados numa linha compacta) */}
           <div className="coin-legend">
             <div className="coin-legend-item">
               <div className="coin-dot good" />
-              <span>+12% combustivel</span>
+              <span>+combustivel</span>
             </div>
             <div className="coin-legend-item">
               <div className="coin-dot bad" />
-              <span>-15% combustivel</span>
+              <span>-combustivel</span>
             </div>
-          </div>
-
-          {/* Boost legend */}
-          <div className="boost-legend">
-            <div className="boost-legend-item">
+            <div className="coin-legend-item">
               <span className="boost-icon">⚡</span>
-              <span>Boost = velocidade extra (gasta mais combustivel)</span>
+              <span>Boost = velocidade extra</span>
+            </div>
+            <div className="coin-legend-item">
+              <span>👻 Fantasma DC — rival</span>
             </div>
           </div>
 
