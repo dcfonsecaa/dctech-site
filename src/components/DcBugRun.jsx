@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-// ─── Quotes DCTECH ───
 const QUOTES = [
   { text: '"Subindo colinas como subo pull requests."', author: "— Denis" },
   { text: '"Meu deploy é mais suave que essa descida."', author: "— Denis" },
@@ -14,129 +13,79 @@ const QUOTES = [
   { text: '"Sob medida, igual os sistemas que entrego."', author: "— Denis" },
 ];
 
-// ─── Terrain generation ───
-const SEGMENT = 6;
-const TERRAIN_LEN = 600;
-
-function getDifficultyMultiplier(dist) {
-  const meters = dist / 10;
-  return Math.min(1 + meters * 0.003, 3.5);
-}
-
-function generateTerrain(startX, count, seed, dist = 0) {
-  const pts = [];
-  let y = 160;
-  let angle = 0;
-  const diff = getDifficultyMultiplier(dist);
-  const amp1 = 0.025 * diff;
-  const amp2 = 0.018 * diff;
-  const maxAngle = 0.12 * Math.min(diff, 1.8);
-
-  for (let i = 0; i < count; i++) {
-    const worldX = startX + i * SEGMENT;
-    const localDist = worldX - 120;
-    const localDiff = getDifficultyMultiplier(localDist);
-
-    angle += (Math.sin(worldX * 0.008 + seed) * amp1 * localDiff +
-              Math.sin(worldX * 0.003 + seed * 1.7) * amp2 * localDiff);
-    angle = Math.max(-maxAngle * localDiff, Math.min(maxAngle * localDiff, angle));
-    y += Math.sin(angle) * SEGMENT;
-    y = Math.max(60, Math.min(240, y));
-    pts.push({ x: worldX, y });
-  }
-  return pts;
-}
-
-function getTerrainY(terrain, worldX) {
-  const idx = Math.floor((worldX - terrain[0].x) / SEGMENT);
-  if (idx < 0) return terrain[0].y;
-  if (idx >= terrain.length - 1) return terrain[terrain.length - 1].y;
-  const t = (worldX - terrain[idx].x) / SEGMENT;
-  return terrain[idx].y + (terrain[idx + 1].y - terrain[idx].y) * t;
-}
-
-function getTerrainAngle(terrain, worldX) {
-  const idx = Math.floor((worldX - terrain[0].x) / SEGMENT);
-  const i = Math.max(0, Math.min(idx, terrain.length - 2));
-  const dx = terrain[i + 1].x - terrain[i].x;
-  const dy = terrain[i + 1].y - terrain[i].y;
-  return Math.atan2(dy, dx);
-}
+const CODE_EASTER_EGGS = [
+  "<div>", "</div>", "{props}", "useState()", "npm i", "git push",
+  "console.log", "return null", "/* TODO */", "<br/>", "yarn dev",
+  "docker run", "API_KEY", "404", "200 OK", "SELECT *", "JSON.parse",
+  "async/await", "try/catch", "import React", "export default",
+  "margin: 0", "flex: 1", "grid-gap", "@media", "function()",
+  "=> {}", "undefined", "NaN", "null", "true", "false",
+  "git commit", "git merge", "git pull", "main branch",
+  "deploy", "build", "vercel --prod", "supabase", "tailwind",
+  "typescript", "javascript", "python", "java", "spring boot",
+  "REST API", "GraphQL", "WebSocket", "OAuth2", "JWT",
+];
 
 const CANVAS_W = 720;
-const CANVAS_H = 360; // maior área de jogo
+const CANVAS_H = 480;
 const FUEL_MAX = 200;
-const CAR_W = 58;
-const CAR_H = 24;
-const WHEEL_R = 13;
-const AXLE_FRONT = 20;
-const AXLE_REAR = -20;
+const BULLET_SPEED = 8;
 
 export default function DcBugRun() {
   const canvasRef = useRef(null);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(() => {
-    try { return parseInt(localStorage.getItem("dchillclimb_high") || "0"); }
+    try { return parseInt(localStorage.getItem("dcriverride_high") || "0"); }
     catch { return 0; }
   });
   const [fuel, setFuel] = useState(FUEL_MAX);
   const [gameState, setGameState] = useState("menu");
   const [playerName, setPlayerName] = useState("");
   const [ranking, setRanking] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("dchillclimb_ranking") || "[]"); }
+    try { return JSON.parse(localStorage.getItem("dcriverride_ranking") || "[]"); }
     catch { return []; }
   });
   const [quoteVisible, setQuoteVisible] = useState(false);
   const [quoteText, setQuoteText] = useState("");
   const [gameOverReason, setGameOverReason] = useState("");
-  const [comboCount, setComboCount] = useState(0);
-  const [boostActive, setBoostActive] = useState(false);
+  const [phase, setPhase] = useState(1);
   const [ghostGap, setGhostGap] = useState(0);
 
-  const keysRef = useRef({ gas: false, brake: false, jump: false, jumpPressed: false });
+  const keysRef = useRef({ up: false, down: false, shoot: false, shootPressed: false });
 
   const gameRef = useRef({
     running: false,
     animId: null,
     lastQuoteIdx: -1,
-    car: { x: 120, vx: 0, angle: 0, angularV: 0, fuel: FUEL_MAX, flipped: false, vy: 0, airborne: false, yOffset: 0 },
-    camera: 120,
-    terrain: [],
-    terrainEnd: 0,
-    dist: 0,
+    plane: { x: 80, y: CANVAS_H / 2, vy: 0, fuel: FUEL_MAX, alive: true },
+    camera: 0,
+    scrollSpeed: 2,
     frame: 0,
     score: 0,
-    seed: Math.random() * 100,
-    coins: [],
+    phase: 1,
+    nextBridge: 800,
+    bullets: [],
+    enemies: [],
+    fuelStations: [],
     particles: [],
-    rocks: [],
-    boostZones: [],
-    ghostOffset: 0,
-    clouds: Array.from({ length: 8 }, () => ({
+    riverBanks: [],
+    bridges: [],
+    easterEggs: [],
+    clouds: Array.from({ length: 6 }, () => ({
       x: Math.random() * CANVAS_W * 2,
-      y: Math.random() * 60 + 10,
-      w: 60 + Math.random() * 80,
-      h: 20 + Math.random() * 15,
-      speed: 0.1 + Math.random() * 0.2,
-      opacity: 0.08 + Math.random() * 0.12,
+      y: Math.random() * 80 + 10,
+      w: 50 + Math.random() * 60,
+      h: 15 + Math.random() * 10,
+      speed: 0.3 + Math.random() * 0.3,
     })),
-    stars: Array.from({ length: 50 }, () => ({
+    stars: Array.from({ length: 40 }, () => ({
       x: Math.random() * CANVAS_W,
-      y: Math.random() * 120,
-      r: Math.random() * 1.8 + 0.2,
-      opacity: Math.random() * 0.5 + 0.15,
+      y: Math.random() * 100,
+      r: Math.random() * 1.5 + 0.3,
+      opacity: Math.random() * 0.4 + 0.1,
       twinkle: Math.random() * Math.PI * 2,
-      twinkleSpeed: 0.02 + Math.random() * 0.03,
     })),
-    mountains: Array.from({ length: 5 }, (_, i) => ({
-      x: i * 200 - 100,
-      w: 180 + Math.random() * 120,
-      h: 60 + Math.random() * 50,
-      color: `rgba(15, 30, 55, ${0.3 + Math.random() * 0.2})`,
-    })),
-    wind: { active: false, force: 0, timer: 0, duration: 0, dir: 1 },
-    deathWall: { x: -200, speed: 0.3, active: false },
-    combo: { count: 0, lastJumpTime: 0, inCombo: false },
+    ghost: { x: -100, y: CANVAS_H / 2, offset: 0 },
     playerSkill: { avgScore: 0, gamesPlayed: 0, bestScores: [] },
   });
 
@@ -145,7 +94,7 @@ export default function DcBugRun() {
 
   useEffect(() => {
     try {
-      const skillData = localStorage.getItem("dchillclimb_skill");
+      const skillData = localStorage.getItem("dcriverride_skill");
       if (skillData) gameRef.current.playerSkill = JSON.parse(skillData);
     } catch {}
   }, []);
@@ -154,7 +103,7 @@ export default function DcBugRun() {
     const newEntry = { name: name.trim() || "Anonimo", score: scoreVal, date: new Date().toISOString() };
     setRanking(prev => {
       const updated = [...prev, newEntry].sort((a, b) => b.score - a.score).slice(0, 10);
-      try { localStorage.setItem("dchillclimb_ranking", JSON.stringify(updated)); } catch {}
+      try { localStorage.setItem("dcriverride_ranking", JSON.stringify(updated)); } catch {}
       return updated;
     });
     const skill = gameRef.current.playerSkill;
@@ -162,7 +111,7 @@ export default function DcBugRun() {
     skill.bestScores.push(scoreVal);
     skill.bestScores = skill.bestScores.slice(-20);
     skill.avgScore = skill.bestScores.reduce((a, b) => a + b, 0) / skill.bestScores.length;
-    try { localStorage.setItem("dchillclimb_skill", JSON.stringify(skill)); } catch {}
+    try { localStorage.setItem("dcriverride_skill", JSON.stringify(skill)); } catch {}
   }, []);
 
   const showQuote = useCallback(() => {
@@ -181,99 +130,82 @@ export default function DcBugRun() {
     const g = gameRef.current;
     g.running = false;
     cancelAnimationFrame(g.animId);
-    const finalScore = Math.floor(g.dist / 10);
-    g.score = finalScore;
+    const finalScore = g.score;
     setScore(finalScore);
     setGameOverReason(reason);
     setGameState("gameover");
-    setBoostActive(false);
-    setComboCount(0);
-    // Fantasma DC sempre "vence" no final — narrativa de rival implacável
-    const finalGap = Math.max(15, Math.round(Math.abs(g.ghostOffset || 0) / 10));
-    setGhostGap(finalGap);
+    setGhostGap(Math.max(0, Math.round(g.ghost.offset / 10)));
     if (finalScore > highScoreRef.current) {
       setHighScore(finalScore);
-      try { localStorage.setItem("dchillclimb_high", finalScore.toString()); } catch {}
+      try { localStorage.setItem("dcriverride_high", finalScore.toString()); } catch {}
     }
     const msg = reason === "fuel" ? '"Sem combustivel. Ate sistemas precisam de energia." — Denis'
-      : reason === "flip" ? '"Capotou. Bugs acontecem. O importante e refatorar." — Denis'
-      : reason === "rock" ? '"Bateu numa pedra. Sempre teste antes do deploy." — Denis'
-      : reason === "deathwall" ? '"O tempo nao espera nem dev." — Denis'
+      : reason === "crash" ? '"Bateu nas margens. Sempre teste antes do deploy." — Denis'
+      : reason === "enemy" ? '"Inimigo abatido? Nao, foi voce." — Denis'
       : '"Fim da linha. Hora de commitar." — Denis';
     setQuoteText(msg);
     setQuoteVisible(true);
   }, []);
 
+  const generateRiverBanks = useCallback((startX, count, phase) => {
+    const banks = [];
+    let leftY = 80;
+    let rightY = CANVAS_H - 80;
+    const diff = 1 + (phase - 1) * 0.3;
+    for (let i = 0; i < count; i++) {
+      const x = startX + i * 4;
+      leftY += Math.sin(x * 0.01 + phase * 0.5) * 2 * diff + (Math.random() - 0.5) * 1.5;
+      rightY += Math.sin(x * 0.008 + phase * 0.3) * 2 * diff + (Math.random() - 0.5) * 1.5;
+      leftY = Math.max(40, Math.min(180, leftY));
+      rightY = Math.max(CANVAS_H - 180, Math.min(CANVAS_H - 40, rightY));
+      banks.push({ x, leftY, rightY });
+    }
+    return banks;
+  }, []);
+
+  const getBankY = useCallback((banks, x, isLeft) => {
+    const idx = Math.floor((x - banks[0].x) / 4);
+    if (idx < 0) return isLeft ? banks[0].leftY : banks[0].rightY;
+    if (idx >= banks.length - 1) return isLeft ? banks[banks.length - 1].leftY : banks[banks.length - 1].rightY;
+    const t = (x - banks[idx].x) / 4;
+    return isLeft
+      ? banks[idx].leftY + (banks[idx + 1].leftY - banks[idx].leftY) * t
+      : banks[idx].rightY + (banks[idx + 1].rightY - banks[idx].rightY) * t;
+  }, []);
+
   const drawScene = useCallback((ctx, canvas) => {
     const g = gameRef.current;
-    const car = g.car;
-    const camX = car.x - 160;
+    const plane = g.plane;
+    const camX = g.camera;
 
     // Sky gradient
     const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
     sky.addColorStop(0, "#030712");
-    sky.addColorStop(0.3, "#0a1628");
-    sky.addColorStop(0.7, "#0f2540");
-    sky.addColorStop(1, "#1a3a5c");
+    sky.addColorStop(0.4, "#0a1a0a");
+    sky.addColorStop(0.7, "#0f2a15");
+    sky.addColorStop(1, "#1a3a1c");
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Moon
-    ctx.save();
-    ctx.shadowColor = "rgba(255,255,255,0.3)";
-    ctx.shadowBlur = 30;
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.beginPath();
-    ctx.arc(canvas.width - 80, 45, 22, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "rgba(200,200,210,0.3)";
-    ctx.beginPath();
-    ctx.arc(canvas.width - 75, 40, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(canvas.width - 85, 50, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
     // Stars
     g.stars.forEach(s => {
-      const twinkle = Math.sin(g.frame * s.twinkleSpeed + s.twinkle) * 0.3 + 0.7;
-      const sx = ((s.x - camX * 0.1) % canvas.width + canvas.width) % canvas.width;
+      const twinkle = Math.sin(g.frame * 0.03 + s.twinkle) * 0.3 + 0.7;
+      const sx = ((s.x - camX * 0.05) % canvas.width + canvas.width) % canvas.width;
       ctx.globalAlpha = s.opacity * twinkle;
       ctx.fillStyle = "#b8d4f0";
       ctx.beginPath();
       ctx.arc(sx, s.y, s.r, 0, Math.PI * 2);
       ctx.fill();
-      if (s.r > 1.2) {
-        ctx.globalAlpha = s.opacity * twinkle * 0.3;
-        ctx.fillStyle = "#93c5fd";
-        ctx.beginPath();
-        ctx.arc(sx, s.y, s.r * 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
     });
     ctx.globalAlpha = 1;
-
-    // Mountains
-    g.mountains.forEach(m => {
-      const mx = ((m.x - camX * 0.05) % (canvas.width + 400) + (canvas.width + 400)) % (canvas.width + 400) - 200;
-      ctx.fillStyle = m.color;
-      ctx.beginPath();
-      ctx.moveTo(mx - m.w / 2, canvas.height);
-      ctx.lineTo(mx, canvas.height - m.h);
-      ctx.lineTo(mx + m.w / 2, canvas.height);
-      ctx.closePath();
-      ctx.fill();
-    });
 
     // Clouds
     g.clouds.forEach(c => {
       c.x -= c.speed;
       if (c.x < -c.w) c.x = canvas.width + c.w;
-      const cx = c.x - camX * 0.15;
-      ctx.globalAlpha = c.opacity;
-      ctx.fillStyle = "#1e3a5f";
+      const cx = c.x - camX * 0.1;
+      ctx.globalAlpha = 0.15;
+      ctx.fillStyle = "#1e3a2f";
       ctx.beginPath();
       ctx.ellipse(cx, c.y, c.w / 2, c.h / 2, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -286,209 +218,193 @@ export default function DcBugRun() {
     });
     ctx.globalAlpha = 1;
 
-    // Wind visual
-    if (g.wind.active) {
-      const windAlpha = 0.15 + Math.sin(g.frame * 0.1) * 0.1;
-      ctx.globalAlpha = windAlpha;
-      ctx.strokeStyle = g.wind.dir > 0 ? "#60a5fa" : "#f87171";
+    // River banks
+    const banks = g.riverBanks;
+    if (banks.length > 1) {
+      // Left bank
+      ctx.beginPath();
+      ctx.moveTo(banks[0].x - camX, 0);
+      banks.forEach(p => ctx.lineTo(p.x - camX, p.leftY));
+      ctx.lineTo(banks[banks.length - 1].x - camX, 0);
+      ctx.closePath();
+      const leftGrad = ctx.createLinearGradient(0, 0, 0, canvas.height / 2);
+      leftGrad.addColorStop(0, "#1a3a1c");
+      leftGrad.addColorStop(1, "#2d5016");
+      ctx.fillStyle = leftGrad;
+      ctx.fill();
+
+      // Right bank
+      ctx.beginPath();
+      ctx.moveTo(banks[0].x - camX, canvas.height);
+      banks.forEach(p => ctx.lineTo(p.x - camX, p.rightY));
+      ctx.lineTo(banks[banks.length - 1].x - camX, canvas.height);
+      ctx.closePath();
+      const rightGrad = ctx.createLinearGradient(0, canvas.height / 2, 0, canvas.height);
+      rightGrad.addColorStop(0, "#2d5016");
+      rightGrad.addColorStop(1, "#1a3a1c");
+      ctx.fillStyle = rightGrad;
+      ctx.fill();
+
+      // River water
+      ctx.beginPath();
+      ctx.moveTo(banks[0].x - camX, banks[0].leftY);
+      banks.forEach(p => ctx.lineTo(p.x - camX, p.leftY));
+      ctx.lineTo(banks[banks.length - 1].x - camX, banks[banks.length - 1].rightY);
+      for (let i = banks.length - 1; i >= 0; i--) {
+        ctx.lineTo(banks[i].x - camX, banks[i].rightY);
+      }
+      ctx.closePath();
+      const waterGrad = ctx.createLinearGradient(0, canvas.height * 0.3, 0, canvas.height * 0.7);
+      waterGrad.addColorStop(0, "#0a5c0a");
+      waterGrad.addColorStop(0.5, "#0d7a0d");
+      waterGrad.addColorStop(1, "#0a5c0a");
+      ctx.fillStyle = waterGrad;
+      ctx.fill();
+
+      // Water shimmer
+      ctx.strokeStyle = "rgba(34, 197, 94, 0.15)";
       ctx.lineWidth = 1;
-      for (let i = 0; i < 5; i++) {
-        const wy = 40 + i * 35;
-        const wx = (g.frame * 2 + i * 80) % (canvas.width + 100) - 50;
+      for (let wy = 100; wy < canvas.height - 100; wy += 25) {
         ctx.beginPath();
-        ctx.moveTo(wx, wy);
-        ctx.lineTo(wx + g.wind.dir * 40, wy);
-        ctx.lineTo(wx + g.wind.dir * 30, wy - 5);
-        ctx.moveTo(wx + g.wind.dir * 40, wy);
-        ctx.lineTo(wx + g.wind.dir * 30, wy + 5);
+        for (let wx = Math.floor(camX / 20) * 20; wx < camX + canvas.width + 20; wx += 20) {
+          const left = getBankY(banks, wx, true);
+          const right = getBankY(banks, wx, false);
+          if (wy > left + 5 && wy < right - 5) {
+            const offset = Math.sin(wx * 0.05 + g.frame * 0.05) * 3;
+            ctx.lineTo(wx - camX, wy + offset);
+          }
+        }
         ctx.stroke();
       }
-      ctx.globalAlpha = 1;
     }
 
-    // Terrain
-    const terrain = g.terrain;
-    if (terrain.length < 2) return;
-
-    ctx.beginPath();
-    ctx.moveTo(terrain[0].x - camX, canvas.height);
-    terrain.forEach(p => ctx.lineTo(p.x - camX, p.y));
-    ctx.lineTo(terrain[terrain.length - 1].x - camX, canvas.height);
-    ctx.closePath();
-    const terrGrad = ctx.createLinearGradient(0, 60, 0, canvas.height);
-    terrGrad.addColorStop(0, "#1e3a5f");
-    terrGrad.addColorStop(0.2, "#162d4a");
-    terrGrad.addColorStop(0.5, "#0f2540");
-    terrGrad.addColorStop(1, "#050d18");
-    ctx.fillStyle = terrGrad;
-    ctx.fill();
-
-    ctx.beginPath();
-    terrain.forEach((p, i) => {
-      const sx = p.x - camX;
-      if (i === 0) ctx.moveTo(sx, p.y);
-      else ctx.lineTo(sx, p.y);
-    });
-    ctx.strokeStyle = "#60a5fa";
-    ctx.lineWidth = 2;
-    ctx.shadowColor = "#3b82f6";
-    ctx.shadowBlur = 8;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    ctx.beginPath();
-    terrain.forEach((p, i) => {
-      const sx = p.x - camX;
-      if (i === 0) ctx.moveTo(sx, p.y + 3);
-      else ctx.lineTo(sx, p.y + 3);
-    });
-    ctx.strokeStyle = "rgba(59, 130, 246, 0.2)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(100, 149, 237, 0.08)";
-    for (let tx = Math.floor(camX / 30) * 30; tx < camX + canvas.width + 30; tx += 30) {
-      const ty = getTerrainY(terrain, tx);
-      if (ty < canvas.height - 5) {
-        ctx.beginPath();
-        ctx.arc(tx - camX, ty + 8 + Math.sin(tx * 0.1) * 3, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Boost zones
-    g.boostZones.forEach(bz => {
-      if (bz.x < camX - 50 || bz.x > camX + canvas.width + 50) return;
-      const bx = bz.x - camX;
-      const by = getTerrainY(terrain, bz.x) - 45;
+    // Easter eggs
+    g.easterEggs.forEach(egg => {
+      if (egg.x < camX - 50 || egg.x > camX + canvas.width + 50) return;
+      const ex = egg.x - camX;
+      const left = getBankY(banks, egg.x, true);
+      const right = getBankY(banks, egg.x, false);
+      const ey = left + (right - left) * 0.85;
       ctx.save();
-      ctx.globalAlpha = 0.4 + Math.sin(g.frame * 0.08) * 0.2;
-      ctx.fillStyle = "#f59e0b";
-      ctx.shadowColor = "#f59e0b";
-      ctx.shadowBlur = 15;
-      ctx.beginPath();
-      ctx.moveTo(bx, by - 12);
-      ctx.lineTo(bx + 10, by + 8);
-      ctx.lineTo(bx - 3, by + 3);
-      ctx.lineTo(bx - 3, by + 12);
-      ctx.lineTo(bx - 10, by - 3);
-      ctx.lineTo(bx + 3, by - 3);
-      ctx.closePath();
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = "#fbbf24";
-      ctx.font = "bold 9px Arial";
+      ctx.globalAlpha = 0.4 + Math.sin(g.frame * 0.03 + egg.x) * 0.15;
+      ctx.fillStyle = "#22c55e";
+      ctx.font = "bold 9px monospace";
       ctx.textAlign = "center";
-      ctx.fillText("BOOST", bx, by + 28);
+      ctx.shadowColor = "#22c55e";
+      ctx.shadowBlur = 4;
+      ctx.fillText(egg.text, ex, ey);
+      ctx.shadowBlur = 0;
       ctx.restore();
     });
 
-    // Rocks
-    g.rocks.forEach(r => {
-      if (r.x < camX - 50 || r.x > camX + canvas.width + 50) return;
-      const rx = r.x - camX;
-      const ry = getTerrainY(terrain, r.x) - r.h / 2;
+    // Bridges
+    g.bridges.forEach(bridge => {
+      if (bridge.x < camX - 100 || bridge.x > camX + canvas.width + 100) return;
+      const bx = bridge.x - camX;
+      const left = getBankY(banks, bridge.x, true);
+      const right = getBankY(banks, bridge.x, false);
       ctx.save();
       ctx.fillStyle = "#475569";
-      ctx.strokeStyle = "#64748b";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(rx - r.w / 2, ry + r.h / 2);
-      ctx.lineTo(rx - r.w / 4, ry - r.h / 2);
-      ctx.lineTo(rx + r.w / 4, ry - r.h / 3);
-      ctx.lineTo(rx + r.w / 2, ry + r.h / 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "rgba(148, 163, 184, 0.2)";
-      ctx.beginPath();
-      ctx.moveTo(rx - r.w / 4, ry - r.h / 2);
-      ctx.lineTo(rx + r.w / 4, ry - r.h / 3);
-      ctx.lineTo(rx, ry + r.h / 4);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(bx - 4, left, 8, right - left);
+      ctx.fillStyle = "#64748b";
+      ctx.fillRect(bx - 6, left, 12, 6);
+      ctx.fillRect(bx - 6, right - 6, 12, 6);
+      ctx.strokeStyle = "#334155";
+      ctx.lineWidth = 2;
+      for (let by = left + 10; by < right - 10; by += 20) {
+        ctx.beginPath();
+        ctx.moveTo(bx - 4, by);
+        ctx.lineTo(bx + 4, by);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = "bold 11px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`FASE ${bridge.phase}`, bx, left - 10);
       ctx.restore();
     });
 
-    // Death wall
-    if (g.deathWall.active) {
-      const dwX = g.deathWall.x - camX;
-      if (dwX > -100 && dwX < canvas.width) {
-        ctx.save();
-        ctx.globalAlpha = 0.6 + Math.sin(g.frame * 0.15) * 0.3;
-        const dwGrad = ctx.createLinearGradient(dwX, 0, dwX + 40, 0);
-        dwGrad.addColorStop(0, "rgba(239, 68, 68, 0)");
-        dwGrad.addColorStop(0.5, "rgba(239, 68, 68, 0.4)");
-        dwGrad.addColorStop(1, "rgba(239, 68, 68, 0)");
-        ctx.fillStyle = dwGrad;
-        ctx.fillRect(dwX, 0, 40, canvas.height);
-        ctx.fillStyle = "rgba(239, 68, 68, 0.8)";
-        for (let sy = (g.frame * 2) % 20 - 20; sy < canvas.height; sy += 20) {
-          ctx.fillRect(dwX + 5, sy, 8, 10);
-          ctx.fillRect(dwX + 22, sy + 10, 8, 10);
-        }
-        ctx.restore();
-      }
-    }
-
-    // Coins
-    g.coins.forEach(c => {
-      if (c.collected) return;
-      const sx = c.x - camX;
-      if (sx < -20 || sx > canvas.width + 20) return;
-      const blinkSpeed = c.blinkSpeed || 1;
-      const blinkPhase = Math.sin(g.frame * blinkSpeed);
-      if (blinkPhase < -0.3) return;
+    // Fuel stations
+    g.fuelStations.forEach(fs => {
+      if (fs.x < camX - 50 || fs.x > camX + canvas.width + 50) return;
+      const fx = fs.x - camX;
+      const left = getBankY(banks, fs.x, true);
+      const right = getBankY(banks, fs.x, false);
+      const fy = left + (right - left) * 0.5;
       ctx.save();
-      ctx.translate(sx, c.y);
-      const isGood = c.type === "good";
-      const glowColor = isGood ? "#22c55e" : "#ef4444";
-      const bodyColor = isGood ? "#22c55e" : "#ef4444";
-      const highlightColor = isGood ? "#86efac" : "#fca5a5";
-      const textColor = isGood ? "#14532d" : "#7f1d1d";
-      const moveOffset = c.moving ? Math.sin(g.frame * 0.05 + c.movePhase) * 15 : 0;
-      ctx.translate(0, moveOffset);
-      ctx.shadowColor = glowColor;
+      ctx.globalAlpha = 0.6 + Math.sin(g.frame * 0.08) * 0.3;
+      ctx.fillStyle = "#22c55e";
+      ctx.shadowColor = "#22c55e";
       ctx.shadowBlur = 15;
-      ctx.strokeStyle = isGood ? "#16a34a" : "#dc2626";
-      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 0, 9, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = bodyColor;
-      ctx.beginPath();
-      ctx.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx.arc(fx, fy, 10, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = highlightColor;
-      ctx.beginPath();
-      ctx.arc(-2, -2, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = textColor;
+      ctx.fillStyle = "#14532d";
       ctx.font = "bold 8px Arial";
       ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("DC", 0, 0.5);
+      ctx.fillText("DC", fx, fy + 2.5);
+      ctx.shadowBlur = 0;
       ctx.restore();
     });
 
-    // Combo display
-    if (g.combo.inCombo && g.combo.count > 1) {
-      const comboX = car.x - camX;
-      const groundY = getTerrainY(terrain, car.x);
-      const carBaseY = groundY - WHEEL_R - CAR_H / 2 - 4;
-      const comboY = carBaseY - CAR_H - 20 - g.combo.count * 3;
+    // Enemies
+    g.enemies.forEach(enemy => {
+      if (enemy.x < camX - 50 || enemy.x > camX + canvas.width + 50) return;
+      const ex = enemy.x - camX;
       ctx.save();
-      ctx.globalAlpha = 0.8 + Math.sin(g.frame * 0.2) * 0.2;
+      ctx.translate(ex, enemy.y);
+      if (enemy.type === "ship") {
+        ctx.fillStyle = "#dc2626";
+        ctx.beginPath();
+        ctx.moveTo(0, -8);
+        ctx.lineTo(12, 0);
+        ctx.lineTo(0, 8);
+        ctx.lineTo(-8, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#7f1d1d";
+        ctx.fillRect(-6, -2, 8, 4);
+      } else if (enemy.type === "heli") {
+        ctx.fillStyle = "#f59e0b";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 12, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#92400e";
+        ctx.fillRect(-2, -10, 4, 8);
+        ctx.strokeStyle = "#d97706";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-18, -10);
+        ctx.lineTo(18, -10);
+        ctx.stroke();
+      } else if (enemy.type === "jet") {
+        ctx.fillStyle = "#ef4444";
+        ctx.beginPath();
+        ctx.moveTo(14, 0);
+        ctx.lineTo(-10, -8);
+        ctx.lineTo(-6, 0);
+        ctx.lineTo(-10, 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#7f1d1d";
+        ctx.fillRect(-8, -2, 6, 4);
+      }
+      ctx.restore();
+    });
+
+    // Bullets
+    g.bullets.forEach(b => {
+      const bx = b.x - camX;
+      ctx.save();
       ctx.fillStyle = "#fbbf24";
-      ctx.font = "bold 14px Arial";
-      ctx.textAlign = "center";
       ctx.shadowColor = "#f59e0b";
-      ctx.shadowBlur = 10;
-      ctx.fillText(`COMBO x${g.combo.count}!`, comboX, comboY);
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(bx, b.y, 3, 0, Math.PI * 2);
+      ctx.fill();
       ctx.shadowBlur = 0;
       ctx.restore();
-    }
+    });
 
     // Particles
     g.particles = g.particles.filter(p => p.life > 0);
@@ -500,287 +416,102 @@ export default function DcBugRun() {
       ctx.fill();
       p.x += p.vx;
       p.y += p.vy;
-      p.vy += 0.08;
       p.life--;
     });
     ctx.globalAlpha = 1;
 
-    // ─── Ghost car (DC) — rival que sempre acaba vencendo ───
-    const ghostX = car.x + g.ghostOffset;
-    const ghostScrX = ghostX - camX;
-    if (ghostScrX > -60 && ghostScrX < canvas.width + 60) {
-      const ghostGroundY = getTerrainY(terrain, ghostX);
-      const ghostAngle = getTerrainAngle(terrain, ghostX);
-      const ghostBaseY = ghostGroundY - WHEEL_R - CAR_H / 2 - 4;
-
-      // Rodas fantasma
-      [AXLE_FRONT, AXLE_REAR].forEach(ax => {
-        const wx = ghostX + ax * Math.cos(ghostAngle);
-        const wBase = getTerrainY(terrain, wx);
-        const wsx = wx - camX;
-        const wsy = wBase - WHEEL_R;
-        ctx.save();
-        ctx.globalAlpha = 0.5;
-        ctx.fillStyle = "#7c2d12";
-        ctx.beginPath();
-        ctx.arc(wsx, wsy, WHEEL_R, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      });
-
+    // Ghost plane
+    const ghost = g.ghost;
+    const ghostX = ghost.x - camX;
+    if (ghostX > -60 && ghostX < canvas.width + 60) {
       ctx.save();
-      ctx.globalAlpha = 0.62;
-      ctx.translate(ghostScrX, ghostBaseY);
-      ctx.rotate(ghostAngle);
-
-      ctx.globalAlpha = 0.15;
-      ctx.fillStyle = "#000";
-      ctx.beginPath();
-      ctx.ellipse(0, CAR_H / 2 + 8, CAR_W * 0.55, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.globalAlpha = 0.65;
+      ctx.globalAlpha = 0.5;
+      ctx.translate(ghostX, ghost.y);
       ctx.fillStyle = "#f97316";
-      ctx.strokeStyle = "#fb923c";
-      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.roundRect(-CAR_W / 2, -CAR_H / 2, CAR_W, CAR_H, [3, 6, 6, 3]);
+      ctx.moveTo(14, 0);
+      ctx.lineTo(-10, -10);
+      ctx.lineTo(-6, 0);
+      ctx.lineTo(-10, 10);
+      ctx.closePath();
       ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#c2410c";
-      ctx.beginPath();
-      ctx.roundRect(-6, -CAR_H / 2 - 14, 26, 16, [5, 5, 0, 0]);
-      ctx.fill();
-
-      // Iniciais DC bem grandes no fantasma
-      ctx.fillStyle = "rgba(255,255,255,0.97)";
-      ctx.font = "bold 16px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.shadowColor = "#f97316";
-      ctx.shadowBlur = 8;
-      ctx.fillText("DC", 0, 2);
-      ctx.shadowBlur = 0;
-      ctx.restore();
-      ctx.globalAlpha = 1;
-
-      ctx.save();
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = "#fdba74";
+      ctx.fillStyle = "#fb923c";
+      ctx.fillRect(-4, -14, 8, 28);
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.font = "bold 10px Arial";
       ctx.textAlign = "center";
-      ctx.fillText("👻 DC", ghostScrX, ghostBaseY - CAR_H - 18);
+      ctx.fillText("DC", 0, 3);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = "#fdba74";
+      ctx.font = "bold 9px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("👻 DC", ghostX, ghost.y - 20);
       ctx.restore();
     }
 
-    // Car
-    const scrX = car.x - camX;
-    const groundY = getTerrainY(terrain, car.x);
-    const carBaseY = groundY - WHEEL_R - CAR_H / 2 - 4;
-    const carY = carBaseY - car.yOffset;
-
+    // Player plane
+    const px = plane.x - camX;
+    const py = plane.y;
     ctx.save();
-    ctx.translate(scrX, carY);
-    ctx.rotate(car.angle);
-
-    if (car.airborne && car.vy < 0) {
-      for (let i = 0; i < 3; i++) {
-        g.particles.push({
-          x: car.x + (Math.random() - 0.5) * 20,
-          y: carBaseY + 10,
-          vx: (Math.random() - 0.5) * 1,
-          vy: -0.5 - Math.random(),
-          r: 2 + Math.random() * 2,
-          color: "rgba(148, 163, 184, 0.5)",
-          life: 12, maxLife: 12,
-        });
-      }
-    }
-
-    if (keysRef.current.brake && g.running) {
-      for (let i = 0; i < 2; i++) {
-        g.particles.push({
-          x: car.x - AXLE_REAR - 10,
-          y: carBaseY + 2,
-          vx: -2 - Math.random() * 1.5,
-          vy: -0.8 + (Math.random() - 0.5) * 0.5,
-          r: 3 + Math.random() * 3,
-          color: `rgba(148, 163, 184, ${0.4 + Math.random() * 0.3})`,
-          life: 22, maxLife: 22,
-        });
-      }
-    }
-
-    if (car.vx > 4 && g.running) {
-      for (let i = 0; i < 2; i++) {
-        g.particles.push({
-          x: car.x + CAR_W / 2 + Math.random() * 20,
-          y: carBaseY + (Math.random() - 0.5) * 15,
-          vx: -3 - Math.random() * 2,
-          vy: 0,
-          r: 0.8,
-          color: "rgba(147, 197, 253, 0.3)",
-          life: 8, maxLife: 8,
-        });
-      }
-    }
-
-    if (boostActive) {
-      for (let i = 0; i < 4; i++) {
-        g.particles.push({
-          x: car.x - CAR_W / 2 - Math.random() * 10,
-          y: carBaseY + (Math.random() - 0.5) * 10,
-          vx: -4 - Math.random() * 3,
-          vy: (Math.random() - 0.5) * 2,
-          r: 2 + Math.random() * 2,
-          color: `rgba(251, 191, 36, ${0.5 + Math.random() * 0.5})`,
-          life: 10, maxLife: 10,
-        });
-      }
-    }
-
-    ctx.globalAlpha = 0.25;
+    ctx.translate(px, py);
+    ctx.globalAlpha = 0.2;
     ctx.fillStyle = "#000";
     ctx.beginPath();
-    ctx.ellipse(0, CAR_H / 2 + 8, CAR_W * 0.55, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 18, 20, 5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
-
     ctx.fillStyle = "#1e40af";
-    ctx.strokeStyle = "#3b82f6";
-    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.roundRect(-CAR_W / 2, -CAR_H / 2, CAR_W, CAR_H, [3, 6, 6, 3]);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(59, 130, 246, 0.25)";
-    ctx.beginPath();
-    ctx.roundRect(-CAR_W / 2 + 2, -CAR_H / 2 + 1, CAR_W - 4, CAR_H / 3, [2, 4, 0, 0]);
-    ctx.fill();
-
-    ctx.fillStyle = "#1d4ed8";
-    ctx.beginPath();
-    ctx.roundRect(-6, -CAR_H / 2 - 14, 26, 16, [5, 5, 0, 0]);
-    ctx.fill();
-    ctx.strokeStyle = "#60a5fa";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = "rgba(147, 197, 253, 0.4)";
-    ctx.beginPath();
-    ctx.roundRect(-4, -CAR_H / 2 - 12, 22, 11, 3);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-    ctx.beginPath();
-    ctx.roundRect(-4, -CAR_H / 2 - 12, 14, 5, [3, 3, 0, 0]);
-    ctx.fill();
-
-    ctx.fillStyle = "#fef08a";
-    ctx.shadowColor = "#fef08a";
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(CAR_W / 2 - 3, 3, 3.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = "#fef08a";
-    ctx.beginPath();
-    ctx.moveTo(CAR_W / 2 - 1, 3);
-    ctx.lineTo(CAR_W / 2 + 80, -15);
-    ctx.lineTo(CAR_W / 2 + 80, 21);
+    ctx.moveTo(16, 0);
+    ctx.lineTo(-12, -10);
+    ctx.lineTo(-8, 0);
+    ctx.lineTo(-12, 10);
     ctx.closePath();
     ctx.fill();
-    ctx.globalAlpha = 1;
-
-    ctx.fillStyle = "#ef4444";
-    ctx.shadowColor = "#ef4444";
-    ctx.shadowBlur = 6;
+    ctx.strokeStyle = "#3b82f6";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = "#2563eb";
+    ctx.fillRect(-6, -16, 10, 32);
+    ctx.strokeStyle = "#60a5fa";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-6, -16, 10, 32);
+    ctx.fillStyle = "#1d4ed8";
     ctx.beginPath();
-    ctx.arc(-CAR_W / 2 + 2, 3, 2.5, 0, Math.PI * 2);
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(-18, -8);
+    ctx.lineTo(-14, 0);
+    ctx.lineTo(-18, 8);
+    ctx.closePath();
     ctx.fill();
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle = "#475569";
-    ctx.fillRect(-CAR_W / 2 - 7, 6, 9, 5);
-    ctx.fillStyle = "#334155";
-    ctx.fillRect(-CAR_W / 2 - 7, 6, 9, 2);
-
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.font = "bold 7px Arial";
+    ctx.fillStyle = "#fef08a";
+    ctx.font = "bold 8px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("DC", 0, 2);
-
-    ctx.restore();
-
-    // Wheels
-    [AXLE_FRONT, AXLE_REAR].forEach(ax => {
-      const wx = car.x + ax * Math.cos(car.angle);
-      const wBase = getTerrainY(terrain, wx);
-      const wsx = wx - camX;
-      const wsy = wBase - WHEEL_R;
-
-      ctx.save();
-      ctx.translate(wsx, wsy);
-
-      ctx.globalAlpha = 0.2;
-      ctx.fillStyle = "#000";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "#fef08a";
+    ctx.shadowBlur = 4;
+    ctx.fillText("DC", 2, 0);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#f59e0b";
+    ctx.globalAlpha = 0.6 + Math.sin(g.frame * 0.2) * 0.3;
+    ctx.beginPath();
+    ctx.arc(-14, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    if (keysRef.current.shoot && g.running) {
+      ctx.fillStyle = "#fbbf24";
+      ctx.globalAlpha = 0.8;
       ctx.beginPath();
-      ctx.ellipse(0, WHEEL_R + 3, WHEEL_R * 0.75, 3, 0, 0, Math.PI * 2);
+      ctx.arc(18, 0, 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
-
-      ctx.fillStyle = "#0f172a";
-      ctx.strokeStyle = "#1e293b";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, WHEEL_R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = "#334155";
-      ctx.lineWidth = 1;
-      const treadRot = (g.frame * (car.vx > 0 ? 0.15 : -0.15)) % (Math.PI * 2);
-      for (let t = 0; t < 8; t++) {
-        const a = treadRot + t * Math.PI / 4;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * (WHEEL_R - 2), Math.sin(a) * (WHEEL_R - 2));
-        ctx.lineTo(Math.cos(a) * WHEEL_R, Math.sin(a) * WHEEL_R);
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = "#3b82f6";
-      ctx.beginPath();
-      ctx.arc(0, 0, WHEEL_R * 0.55, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#60a5fa";
-      ctx.beginPath();
-      ctx.arc(0, 0, WHEEL_R * 0.4, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = "#93c5fd";
-      ctx.lineWidth = 2;
-      const rot = (g.frame * (car.vx > 0 ? 0.15 : -0.15)) % (Math.PI * 2);
-      for (let s = 0; s < 5; s++) {
-        const a = rot + s * Math.PI * 2 / 5;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(a) * WHEEL_R * 0.48, Math.sin(a) * WHEEL_R * 0.48);
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = "#1e40af";
-      ctx.beginPath();
-      ctx.arc(0, 0, 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    });
+    }
+    ctx.restore();
 
     // HUD
-    const fuelPct = car.fuel / FUEL_MAX;
+    const fuelPct = plane.fuel / FUEL_MAX;
     const barW = 120, barH = 10, barX = 14, barY = 14;
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.beginPath();
@@ -806,38 +537,26 @@ export default function DcBugRun() {
     ctx.font = "10px Arial";
     ctx.fillText(`${Math.round(fuelPct * 100)}%`, barX + 20, barY + 24);
 
-    const diffLevel = getDifficultyMultiplier(g.dist);
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
     ctx.roundRect(14, 44, 80, 18, 6);
     ctx.fill();
-    ctx.fillStyle = diffLevel > 2.5 ? "#ef4444" : diffLevel > 1.8 ? "#f59e0b" : "#60a5fa";
-    ctx.font = "10px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText(`DIF: ${diffLevel.toFixed(1)}x`, 20, 56);
-
-    // Ghost gap indicator
-    const gapMeters = Math.round(g.ghostOffset / 10);
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.beginPath();
-    ctx.roundRect(14, 66, 80, 18, 6);
-    ctx.fill();
-    ctx.fillStyle = gapMeters >= 0 ? "#fb923c" : "#34d399";
+    ctx.fillStyle = "#fbbf24";
     ctx.font = "bold 10px Arial";
     ctx.textAlign = "left";
-    ctx.fillText(`👻${gapMeters >= 0 ? "+" : ""}${gapMeters}m`, 20, 78);
+    ctx.fillText(`FASE ${g.phase}`, 20, 56);
 
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.beginPath();
     ctx.roundRect(canvas.width - 110, 10, 100, 26, 8);
     ctx.fill();
-    ctx.strokeStyle = "rgba(59, 130, 246, 0.2)";
+    ctx.strokeStyle = "rgba(34, 197, 94, 0.2)";
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = "#34d399";
     ctx.font = "bold 13px monospace";
     ctx.textAlign = "right";
-    ctx.fillText(`${Math.floor(g.dist / 10)}m`, canvas.width - 16, 28);
+    ctx.fillText(`${g.score}m`, canvas.width - 16, 28);
 
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
@@ -846,327 +565,226 @@ export default function DcBugRun() {
     ctx.fillStyle = "#60a5fa";
     ctx.font = "11px monospace";
     ctx.textAlign = "right";
-    const speed = Math.abs(car.vx).toFixed(1);
-    ctx.fillText(`${speed} km/h`, canvas.width - 16, 56);
+    ctx.fillText(`REC: ${highScoreRef.current}m`, canvas.width - 16, 56);
 
-    if (g.wind.active) {
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.beginPath();
-      ctx.roundRect(canvas.width - 110, 68, 100, 18, 6);
-      ctx.fill();
-      ctx.fillStyle = g.wind.dir > 0 ? "#60a5fa" : "#f87171";
-      ctx.font = "10px Arial";
-      ctx.textAlign = "right";
-      const windDir = g.wind.dir > 0 ? "→" : "←";
-      ctx.fillText(`VENTO ${windDir} ${Math.abs(g.wind.force).toFixed(1)}`, canvas.width - 16, 80);
-    }
-
-    if (g.deathWall.active) {
-      const distToWall = car.x - g.deathWall.x;
-      if (distToWall < 300) {
-        ctx.fillStyle = "rgba(239, 68, 68, 0.8)";
-        ctx.font = "bold 12px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(`⚠ PERIGO ATRAS! ${Math.floor(distToWall)}m`, canvas.width / 2, 30);
-      }
-    }
+    const gapMeters = Math.round(ghost.offset / 10);
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.roundRect(14, 66, 100, 18, 6);
+    ctx.fill();
+    ctx.fillStyle = gapMeters >= 0 ? "#fb923c" : "#34d399";
+    ctx.font = "bold 10px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(`👻${gapMeters >= 0 ? "+" : ""}${gapMeters}m`, 20, 78);
 
     if (g.running) {
       ctx.font = "bold 10px Arial";
-      ["⚡ GAS", "🛑 FREIO", "⬆ PULAR"].forEach((label, i) => {
-        const active = i === 0 ? keysRef.current.gas : i === 1 ? keysRef.current.brake : keysRef.current.jump;
+      ["⬆ SOBE", "⬇ DESCE", "SPACE ATIRA"].forEach((label, i) => {
+        const active = i === 0 ? keysRef.current.up : i === 1 ? keysRef.current.down : keysRef.current.shoot;
         ctx.globalAlpha = active ? 1 : 0.35;
         ctx.fillStyle = active
-          ? (i === 0 ? "#34d399" : i === 1 ? "#f87171" : "#60a5fa")
+          ? (i === 0 ? "#34d399" : i === 1 ? "#60a5fa" : "#fbbf24")
           : "#64748b";
-        const xPos = i === 0 ? 14 : i === 1 ? canvas.width / 2 : canvas.width - 14;
+        const xPos = i === 0 ? 14 : i === 2 ? canvas.width - 14 : canvas.width / 2;
         ctx.textAlign = i === 0 ? "left" : i === 2 ? "right" : "center";
         ctx.fillText(label, xPos, canvas.height - 10);
         ctx.globalAlpha = 1;
       });
     }
-  }, [boostActive]);
+  }, [getBankY]);
 
-  // ─── Update physics ───
   const updatePhysics = useCallback(() => {
     const g = gameRef.current;
     if (!g.running) return;
-    const car = g.car;
-    const terrain = g.terrain;
+    const plane = g.plane;
     g.frame++;
 
-    const terrAngle = getTerrainAngle(terrain, car.x);
-    const gas = keysRef.current.gas;
-    const brake = keysRef.current.brake;
-    const jump = keysRef.current.jump;
-    const jumpPressed = keysRef.current.jumpPressed;
-    const diff = getDifficultyMultiplier(g.dist);
+    const up = keysRef.current.up;
+    const down = keysRef.current.down;
+    const shoot = keysRef.current.shoot;
+    const shootPressed = keysRef.current.shootPressed;
 
-    // Adaptive difficulty
-    const skill = g.playerSkill;
-    let adaptiveBoost = 1;
-    if (skill.gamesPlayed > 5 && skill.avgScore > 200) {
-      adaptiveBoost = 1 + Math.min((skill.avgScore - 200) / 1000, 0.5);
-    }
-    const effectiveDiff = diff * adaptiveBoost;
+    const baseSpeed = 2 + (g.phase - 1) * 0.5;
+    g.scrollSpeed = Math.min(baseSpeed, 6);
+    g.camera += g.scrollSpeed;
+    plane.x = 80 + g.camera;
 
-    // Ghost car (DC) — rival dinâmico: oscila na frente/atrás, com leve viés
-    // de avanço que garante que, no fim, ele sempre termina "vencendo".
-    const ghostBias = Math.min(g.frame * 0.012, 260);
-    const ghostOsc = Math.sin(g.frame * 0.015) * 110;
-    g.ghostOffset = ghostOsc + ghostBias;
+    if (up) plane.vy -= 0.4;
+    if (down) plane.vy += 0.4;
+    plane.vy *= 0.92;
+    plane.y += plane.vy;
 
-    // Wind system
-    if (!g.wind.active && Math.random() < 0.0008 * effectiveDiff) {
-      g.wind.active = true;
-      g.wind.force = (0.15 + Math.random() * 0.35) * effectiveDiff;
-      g.wind.dir = Math.random() > 0.5 ? 1 : -1;
-      g.wind.duration = 120 + Math.random() * 180;
-      g.wind.timer = 0;
-    }
-    if (g.wind.active) {
-      g.wind.timer++;
-      car.angle += g.wind.force * g.wind.dir * 0.008;
-      car.vx += g.wind.force * g.wind.dir * 0.02;
-      if (g.wind.timer >= g.wind.duration) {
-        g.wind.active = false;
-      }
-    }
+    const leftBound = getBankY(g.riverBanks, plane.x, true) + 15;
+    const rightBound = getBankY(g.riverBanks, plane.x, false) - 15;
+    plane.y = Math.max(leftBound, Math.min(rightBound, plane.y));
 
-    // Death wall
-    if (g.dist / 10 > 150 && !g.deathWall.active) {
-      g.deathWall.active = true;
-      g.deathWall.x = car.x - 300;
-    }
-    if (g.deathWall.active) {
-      g.deathWall.speed = 0.15 + (effectiveDiff - 1) * 0.08;
-      g.deathWall.x += g.deathWall.speed;
-      if (g.deathWall.x > car.x - 30) {
-        gameOver("deathwall");
-        return;
-      }
-    }
-
-    // Jump mechanics
-    if (jump && !jumpPressed && !car.airborne && car.vx > 0.5) {
-      car.vy = -6;
-      car.airborne = true;
-      keysRef.current.jumpPressed = true;
-
-      const now = Date.now();
-      if (g.combo.inCombo && now - g.combo.lastJumpTime < 2000) {
-        g.combo.count++;
-        setComboCount(g.combo.count);
-      } else {
-        g.combo.count = 1;
-        g.combo.inCombo = true;
-        setComboCount(1);
-      }
-      g.combo.lastJumpTime = now;
-
-      for (let i = 0; i < 10; i++) {
-        g.particles.push({
-          x: car.x + (Math.random() - 0.5) * 30,
-          y: getTerrainY(terrain, car.x),
-          vx: (Math.random() - 0.5) * 3,
-          vy: -Math.random() * 2 - 0.5,
-          r: 2 + Math.random() * 2,
-          color: "rgba(148, 163, 184, 0.6)",
-          life: 15, maxLife: 15,
-        });
-      }
-    }
-    if (!jump) {
-      keysRef.current.jumpPressed = false;
-    }
-
-    if (car.airborne) {
-      car.vy += 0.25;
-      car.yOffset -= car.vy;
-      const groundY = getTerrainY(terrain, car.x);
-      const carBaseY = groundY - WHEEL_R - CAR_H / 2 - 4;
-
-      if (car.yOffset <= 0) {
-        car.yOffset = 0;
-        car.vy = 0;
-        car.airborne = false;
-
-        if (g.combo.count > 1) {
-          const landingAngle = Math.abs(car.angle);
-          if (landingAngle < 0.4) {
-            const bonus = Math.min(g.combo.count * 5, 25);
-            car.fuel = Math.min(FUEL_MAX, car.fuel + bonus);
-          } else if (landingAngle > 0.7) {
-            car.fuel = Math.max(0, car.fuel - 5);
-          }
-        }
-        g.combo.inCombo = false;
-        g.combo.count = 0;
-        setComboCount(0);
-
-        for (let i = 0; i < 6; i++) {
-          g.particles.push({
-            x: car.x + (Math.random() - 0.5) * 20,
-            y: groundY,
-            vx: (Math.random() - 0.5) * 2,
-            vy: -Math.random() * 1.5,
-            r: 2 + Math.random(),
-            color: "rgba(100, 116, 139, 0.5)",
-            life: 10, maxLife: 10,
-          });
-        }
-      }
-    }
-
-    // Acceleration with progressive fuel cost
-    const maxSpeed = 7;
-    const steepnessPenalty = Math.abs(terrAngle) > 0.1 ? 1 + Math.abs(terrAngle) * 3 : 1;
-    const fuelConsumptionRate = 0.05 * effectiveDiff * steepnessPenalty;
-
-    if (gas) {
-      car.vx += Math.cos(terrAngle) * 0.2;
-      car.fuel -= fuelConsumptionRate;
-    }
-    if (brake) {
-      car.vx -= 0.3;
-    }
-
-    // Boost zones
-    let inBoostZone = false;
-    g.boostZones.forEach(bz => {
-      if (car.x > bz.x - 20 && car.x < bz.x + 20 && car.airborne) {
-        inBoostZone = true;
-        car.vx += 0.4;
-        car.fuel -= 0.25;
-      }
-    });
-    setBoostActive(inBoostZone);
-
-    if (!car.airborne) {
-      car.vx += Math.sin(terrAngle) * (-0.14);
-    }
-
-    car.vx *= 0.982;
-    car.vx = Math.max(-2.5, Math.min(maxSpeed, car.vx));
-
-    car.x += car.vx;
-    if (car.x < 80) { car.x = 80; car.vx = 0; }
-
-    if (!car.airborne) {
-      const targetAngle = terrAngle;
-      car.angle += (targetAngle - car.angle) * 0.14;
-    } else {
-      car.angle += car.vx * 0.008;
-      car.angle = Math.max(-0.8, Math.min(0.8, car.angle));
-    }
-
-    if (Math.abs(car.angle) > 1.15 && !car.airborne) {
-      gameOver("flip");
+    if (plane.y <= leftBound + 5 || plane.y >= rightBound - 5) {
+      gameOver("crash");
       return;
     }
 
-    car.fuel = Math.max(0, car.fuel);
-    setFuel(car.fuel);
-    if (car.fuel <= 0 && !car.airborne) {
+    if (shoot && !shootPressed && g.frame % 8 === 0) {
+      g.bullets.push({ x: plane.x + 20, y: plane.y, vx: BULLET_SPEED });
+      keysRef.current.shootPressed = true;
+    }
+    if (!shoot) keysRef.current.shootPressed = false;
+
+    g.bullets = g.bullets.filter(b => {
+      b.x += b.vx;
+      return b.x < g.camera + CANVAS_W + 50;
+    });
+
+    plane.fuel -= 0.08 * (1 + (g.phase - 1) * 0.1);
+    if (shoot) plane.fuel -= 0.02;
+    plane.fuel = Math.max(0, plane.fuel);
+    setFuel(plane.fuel);
+    if (plane.fuel <= 0) {
       gameOver("fuel");
       return;
     }
 
-    // Rock collision
-    const carScreenY = getTerrainY(terrain, car.x) - WHEEL_R - CAR_H / 2 - 4 - car.yOffset;
-    g.rocks.forEach(r => {
-      if (r.x < car.x - 30 || r.x > car.x + 30) return;
-      const dx = Math.abs(r.x - car.x);
-      const dy = Math.abs((getTerrainY(terrain, r.x) - r.h / 2) - carScreenY);
-      if (dx < r.w / 2 + CAR_W / 3 && dy < r.h / 2 + CAR_H / 2) {
-        if (car.yOffset < r.h + 10) {
-          gameOver("rock");
+    g.enemies = g.enemies.filter(e => {
+      e.x -= g.scrollSpeed * 0.3;
+      if (e.type === "heli") e.y += Math.sin(g.frame * 0.05 + e.x) * 0.5;
+      return e.x > g.camera - 100;
+    });
+
+    const enemyChance = 0.008 + (g.phase - 1) * 0.003;
+    if (Math.random() < enemyChance && g.frame % 30 === 0) {
+      const types = ["ship", "heli", "jet"];
+      const type = types[Math.floor(Math.random() * Math.min(types.length, g.phase + 1))];
+      const left = getBankY(g.riverBanks, g.camera + CANVAS_W + 50, true);
+      const right = getBankY(g.riverBanks, g.camera + CANVAS_W + 50, false);
+      g.enemies.push({
+        x: g.camera + CANVAS_W + 50,
+        y: left + 20 + Math.random() * (right - left - 40),
+        type,
+        hp: type === "jet" ? 2 : 1,
+      });
+    }
+
+    g.bullets.forEach(b => {
+      g.enemies.forEach(e => {
+        if (e.hp <= 0) return;
+        const dx = Math.abs(b.x - e.x);
+        const dy = Math.abs(b.y - e.y);
+        if (dx < 15 && dy < 12) {
+          e.hp--;
+          b.x = -9999;
+          if (e.hp <= 0) {
+            g.score += e.type === "jet" ? 50 : e.type === "heli" ? 30 : 20;
+            for (let i = 0; i < 10; i++) {
+              g.particles.push({
+                x: e.x, y: e.y,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4,
+                r: 2 + Math.random() * 3,
+                color: e.type === "jet" ? "#ef4444" : "#f59e0b",
+                life: 20, maxLife: 20,
+              });
+            }
+          }
         }
+      });
+    });
+    g.bullets = g.bullets.filter(b => b.x > -999);
+    g.enemies = g.enemies.filter(e => e.hp > 0);
+
+    g.enemies.forEach(e => {
+      const dx = Math.abs(e.x - plane.x);
+      const dy = Math.abs(e.y - plane.y);
+      if (dx < 20 && dy < 15) {
+        gameOver("enemy");
       }
     });
 
-    g.dist = Math.max(g.dist, car.x - 120);
-    const newScore = Math.floor(g.dist / 10);
-    if (newScore !== g.score) {
-      g.score = newScore;
-      setScore(newScore);
-      if (newScore > 0 && newScore % 50 === 0) showQuote();
-    }
-
-    // Generate new terrain and entities
-    if (car.x + CANVAS_W > g.terrainEnd - SEGMENT * 10) {
-      const extra = generateTerrain(g.terrainEnd, 200, g.seed, g.dist);
-      g.terrain = [...g.terrain.slice(-200), ...extra];
-      g.terrainEnd = g.terrain[g.terrain.length - 1].x;
-
-      extra.forEach((p, i) => {
-        if (i % 14 === 7) {
-          const isElevated = Math.random() > 0.35;
-          const badCoinChance = Math.min(0.15 + (effectiveDiff - 1) * 0.08, 0.4);
-          const coinType = Math.random() > badCoinChance ? "good" : "bad";
-          const isMoving = Math.random() > 0.7;
-          g.coins.push({
-            x: p.x,
-            y: isElevated ? p.y - 55 : p.y - 32,
-            collected: false,
-            type: coinType,
-            elevated: isElevated,
-            moving: isMoving,
-            movePhase: Math.random() * Math.PI * 2,
-            blinkSpeed: 0.03 + Math.random() * 0.04,
-          });
-        }
-      });
-
-      extra.forEach((p, i) => {
-        if (i % 60 === 30 && Math.random() < Math.min(0.2 + (effectiveDiff - 1) * 0.1, 0.5)) {
-          g.rocks.push({
-            x: p.x,
-            w: 18 + Math.random() * 14,
-            h: 14 + Math.random() * 12,
-          });
-        }
-      });
-
-      extra.forEach((p, i) => {
-        if (i % 80 === 40 && Math.random() < 0.5) {
-          g.boostZones.push({ x: p.x, active: true });
-        }
-      });
-    }
-
-    g.terrain = g.terrain.filter(p => p.x > car.x - CANVAS_W);
-    g.coins = g.coins.filter(c => c.x > car.x - CANVAS_W);
-    g.rocks = g.rocks.filter(r => r.x > car.x - CANVAS_W);
-    g.boostZones = g.boostZones.filter(bz => bz.x > car.x - CANVAS_W);
-
-    // Coin collection
-    g.coins.forEach(c => {
-      if (c.collected) return;
-      const coinY = c.y + (c.moving ? Math.sin(g.frame * 0.05 + c.movePhase) * 15 : 0);
-      const dx = Math.abs(c.x - car.x);
-      const dy = Math.abs(coinY - carScreenY);
-      if (dx < 24 && dy < 30) {
-        c.collected = true;
-        const isGood = c.type === "good";
-        const fuelChange = isGood ? 25 : -10;
-        car.fuel = Math.max(0, Math.min(FUEL_MAX, car.fuel + fuelChange));
-        const particleColor = isGood ? "#22c55e" : "#ef4444";
-        for (let i = 0; i < 12; i++) {
+    g.fuelStations = g.fuelStations.filter(fs => {
+      fs.x -= g.scrollSpeed;
+      const dx = Math.abs(fs.x - plane.x);
+      const dy = Math.abs(fs.y - plane.y);
+      if (dx < 20 && dy < 20) {
+        plane.fuel = Math.min(FUEL_MAX, plane.fuel + 40);
+        for (let i = 0; i < 8; i++) {
           g.particles.push({
-            x: c.x, y: coinY,
-            vx: (Math.random() - 0.5) * 4,
-            vy: -Math.random() * 3 - 1,
-            r: 2 + Math.random() * 2.5,
-            color: particleColor,
-            life: 25, maxLife: 25,
+            x: fs.x, y: fs.y,
+            vx: (Math.random() - 0.5) * 3,
+            vy: (Math.random() - 0.5) * 3,
+            r: 2 + Math.random() * 2,
+            color: "#22c55e",
+            life: 15, maxLife: 15,
           });
         }
+        return false;
+      }
+      return fs.x > g.camera - 100;
+    });
+
+    if (Math.random() < 0.003 && g.frame % 60 === 0) {
+      const left = getBankY(g.riverBanks, g.camera + CANVAS_W + 100, true);
+      const right = getBankY(g.riverBanks, g.camera + CANVAS_W + 100, false);
+      g.fuelStations.push({
+        x: g.camera + CANVAS_W + 100,
+        y: left + (right - left) * 0.5,
+      });
+    }
+
+    g.bridges = g.bridges.filter(b => b.x > g.camera - 100);
+    g.bridges.forEach(b => {
+      if (!b.passed && plane.x > b.x + 20) {
+        b.passed = true;
+        g.phase++;
+        setPhase(g.phase);
+        g.score += 100;
+        showQuote();
       }
     });
-  }, [showQuote, gameOver]);
 
-  // ─── Game loop ───
+    if (g.camera + CANVAS_W > g.nextBridge - 200) {
+      g.bridges.push({ x: g.nextBridge, phase: g.phase + 1, passed: false });
+      g.nextBridge += 800 + Math.random() * 400;
+    }
+
+    if (g.camera + CANVAS_W > g.riverBanks[g.riverBanks.length - 1]?.x - 100) {
+      const lastX = g.riverBanks[g.riverBanks.length - 1].x;
+      const newBanks = generateRiverBanks(lastX + 4, 200, g.phase);
+      g.riverBanks = [...g.riverBanks.slice(-300), ...newBanks];
+      newBanks.forEach((b, i) => {
+        if (i % 25 === 0) {
+          g.easterEggs.push({
+            x: b.x,
+            text: CODE_EASTER_EGGS[Math.floor(Math.random() * CODE_EASTER_EGGS.length)],
+          });
+        }
+      });
+    }
+    g.riverBanks = g.riverBanks.filter(b => b.x > g.camera - CANVAS_W);
+    g.easterEggs = g.easterEggs.filter(e => e.x > g.camera - CANVAS_W);
+
+    g.score = Math.floor(g.camera / 10);
+    setScore(g.score);
+    if (g.score > 0 && g.score % 100 === 0 && g.frame % 10 === 0) showQuote();
+
+    const ghostBias = Math.min(g.frame * 0.015, 300);
+    const ghostOsc = Math.sin(g.frame * 0.012) * 120;
+    g.ghost.offset = ghostOsc + ghostBias;
+    g.ghost.x = plane.x + g.ghost.offset;
+    const ghostLeft = getBankY(g.riverBanks, g.ghost.x, true);
+    const ghostRight = getBankY(g.riverBanks, g.ghost.x, false);
+    g.ghost.y = ghostLeft + (ghostRight - ghostLeft) * 0.5 + Math.sin(g.frame * 0.03) * 20;
+
+    if (g.running && g.frame % 3 === 0) {
+      g.particles.push({
+        x: plane.x - 16,
+        y: plane.y + (Math.random() - 0.5) * 4,
+        vx: -2 - Math.random(),
+        vy: (Math.random() - 0.5) * 0.5,
+        r: 1.5 + Math.random(),
+        color: `rgba(251, 191, 36, ${0.4 + Math.random() * 0.4})`,
+        life: 10, maxLife: 10,
+      });
+    }
+  }, [showQuote, gameOver, generateRiverBanks, getBankY]);
+
   const loop = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1178,56 +796,42 @@ export default function DcBugRun() {
     }
   }, [updatePhysics, drawScene]);
 
-  // ─── Start game ───
   const startGame = useCallback(() => {
     const g = gameRef.current;
-    const seed = Math.random() * 100;
-    g.seed = seed;
-    const terrain = generateTerrain(0, TERRAIN_LEN, seed);
-    g.terrain = terrain;
-    g.terrainEnd = terrain[terrain.length - 1].x;
-    g.car = { x: 120, vx: 0, angle: 0, angularV: 0, fuel: FUEL_MAX, flipped: false, vy: 0, airborne: false, yOffset: 0 };
-    g.dist = 0;
-    g.score = 0;
+    const banks = generateRiverBanks(0, 400, 1);
+    g.riverBanks = banks;
+    g.plane = { x: 80, y: CANVAS_H / 2, vy: 0, fuel: FUEL_MAX, alive: true };
+    g.camera = 0;
+    g.scrollSpeed = 2;
     g.frame = 0;
-    g.ghostOffset = 0;
-    g.wind = { active: false, force: 0, timer: 0, duration: 0, dir: 1 };
-    g.deathWall = { x: -200, speed: 0.3, active: false };
-    g.combo = { count: 0, lastJumpTime: 0, inCombo: false };
-
-    g.coins = [];
-    terrain.forEach((p, i) => {
-      if (i % 14 === 7) {
-        const isElevated = Math.random() > 0.5;
-        const coinType = Math.random() > 0.35 ? "good" : "bad";
-        const isMoving = Math.random() > 0.7;
-        g.coins.push({
-          x: p.x,
-          y: isElevated ? p.y - 55 : p.y - 32,
-          collected: false,
-          type: coinType,
-          elevated: isElevated,
-          moving: isMoving,
-          movePhase: Math.random() * Math.PI * 2,
-          blinkSpeed: 0.03 + Math.random() * 0.04,
+    g.score = 0;
+    g.phase = 1;
+    g.nextBridge = 800;
+    g.bullets = [];
+    g.enemies = [];
+    g.fuelStations = [];
+    g.particles = [];
+    g.bridges = [];
+    g.easterEggs = [];
+    g.ghost = { x: -100, y: CANVAS_H / 2, offset: 0 };
+    banks.forEach((b, i) => {
+      if (i % 25 === 0) {
+        g.easterEggs.push({
+          x: b.x,
+          text: CODE_EASTER_EGGS[Math.floor(Math.random() * CODE_EASTER_EGGS.length)],
         });
       }
     });
-
-    g.rocks = [];
-    g.boostZones = [];
-    g.particles = [];
     g.running = true;
     setScore(0);
     setFuel(FUEL_MAX);
+    setPhase(1);
     setGameState("playing");
     setQuoteVisible(false);
-    setComboCount(0);
-    setBoostActive(false);
     setGhostGap(0);
     setTimeout(() => showQuote(), 800);
     g.animId = requestAnimationFrame(loop);
-  }, [showQuote, loop]);
+  }, [showQuote, loop, generateRiverBanks]);
 
   const handleStart = useCallback(() => {
     if (gameState === "gameover" && playerName.trim()) {
@@ -1237,25 +841,24 @@ export default function DcBugRun() {
     startGame();
   }, [gameState, playerName, score, addToRanking, startGame]);
 
-  // ─── Controls ───
   useEffect(() => {
     const onDown = (e) => {
-      if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = true;
-      if (e.code === "ArrowLeft" || e.code === "KeyA") keysRef.current.brake = true;
-      if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") {
-        keysRef.current.jump = true;
+      if (e.code === "ArrowUp" || e.code === "KeyW") keysRef.current.up = true;
+      if (e.code === "ArrowDown" || e.code === "KeyS") keysRef.current.down = true;
+      if (e.code === "Space" || e.code === "KeyX") {
+        keysRef.current.shoot = true;
       }
       if ((e.code === "Space" || e.code === "Enter") && gameState !== "playing") {
         e.preventDefault();
-        if (gameState === "gameover" && document.activeElement?.id === "hill-name-input") return;
+        if (gameState === "gameover" && document.activeElement?.id === "river-name-input") return;
         handleStart();
       }
     };
     const onUp = (e) => {
-      if (e.code === "ArrowRight" || e.code === "KeyD") keysRef.current.gas = false;
-      if (e.code === "ArrowLeft" || e.code === "KeyA") keysRef.current.brake = false;
-      if (e.code === "ArrowUp" || e.code === "KeyW" || e.code === "Space") {
-        keysRef.current.jump = false;
+      if (e.code === "ArrowUp" || e.code === "KeyW") keysRef.current.up = false;
+      if (e.code === "ArrowDown" || e.code === "KeyS") keysRef.current.down = false;
+      if (e.code === "Space" || e.code === "KeyX") {
+        keysRef.current.shoot = false;
       }
     };
     window.addEventListener("keydown", onDown);
@@ -1263,76 +866,64 @@ export default function DcBugRun() {
     return () => { window.removeEventListener("keydown", onDown); window.removeEventListener("keyup", onUp); };
   }, [gameState, handleStart]);
 
-  // ─── Initial draw ───
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const g = gameRef.current;
-    const terrain = generateTerrain(0, TERRAIN_LEN, g.seed);
-    g.terrain = terrain;
-    g.terrainEnd = terrain[terrain.length - 1].x;
-    g.coins = terrain.filter((_, i) => i % 18 === 8).map((p, idx) => ({
-      x: p.x,
-      y: Math.random() > 0.5 ? p.y - 55 : p.y - 32,
-      collected: false,
-      type: Math.random() > 0.7 ? "good" : "bad",
-      elevated: Math.random() > 0.5,
-      moving: Math.random() > 0.7,
-      movePhase: idx,
-      blinkSpeed: 0.03 + Math.random() * 0.04,
+    const banks = generateRiverBanks(0, 400, 1);
+    g.riverBanks = banks;
+    g.easterEggs = banks.filter((_, i) => i % 25 === 0).map(b => ({
+      x: b.x,
+      text: CODE_EASTER_EGGS[Math.floor(Math.random() * CODE_EASTER_EGGS.length)],
     }));
-    g.rocks = [];
-    g.boostZones = [];
-    g.ghostOffset = 0;
     drawScene(ctx, canvas);
-  }, [drawScene]);
+  }, [drawScene, generateRiverBanks]);
 
   useEffect(() => () => { cancelAnimationFrame(gameRef.current.animId); }, []);
 
-  // ─── Touch buttons ───
-  const gasStart  = useCallback(() => { keysRef.current.gas = true; }, []);
-  const gasEnd    = useCallback(() => { keysRef.current.gas = false; }, []);
-  const brakeStart= useCallback(() => { keysRef.current.brake = true; }, []);
-  const brakeEnd  = useCallback(() => { keysRef.current.brake = false; }, []);
-  const jumpStart = useCallback(() => { keysRef.current.jump = true; }, []);
-  const jumpEnd   = useCallback(() => { keysRef.current.jump = false; keysRef.current.jumpPressed = false; }, []);
+  const upStart = useCallback(() => { keysRef.current.up = true; }, []);
+  const upEnd = useCallback(() => { keysRef.current.up = false; }, []);
+  const downStart = useCallback(() => { keysRef.current.down = true; }, []);
+  const downEnd = useCallback(() => { keysRef.current.down = false; }, []);
+  const shootStart = useCallback(() => { keysRef.current.shoot = true; }, []);
+  const shootEnd = useCallback(() => { keysRef.current.shoot = false; keysRef.current.shootPressed = false; }, []);
 
   const fuelPct = fuel / FUEL_MAX;
 
   return (
-    <section className="dc-bugrun">
+    <section className="dc-riverride">
       <style>{`
-        .dc-bugrun {
+        .dc-riverride {
           width: 100%;
           display: flex;
           justify-content: center;
           padding: 20px 0;
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
-        .dc-bugrun .container {
+        .dc-riverride .container {
           width: 100%;
           max-width: 740px;
           padding: 0 10px;
         }
-        .bugrun-card {
+        .riverride-card {
           background: linear-gradient(145deg, #0a0f1a 0%, #0d1525 50%, #0a1220 100%);
           border-radius: 20px;
-          border: 1px solid rgba(59, 130, 246, 0.15);
-          box-shadow: 0 0 60px rgba(59, 130, 246, 0.08), 0 8px 32px rgba(0,0,0,0.4);
+          border: 1px solid rgba(34, 197, 94, 0.15);
+          box-shadow: 0 0 60px rgba(34, 197, 94, 0.08), 0 8px 32px rgba(0,0,0,0.4);
           overflow: hidden;
         }
-        .bugrun-header {
+        .riverride-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 8px 14px;
           gap: 8px;
           flex-wrap: nowrap;
-          background: linear-gradient(90deg, rgba(30,64,175,0.15) 0%, transparent 100%);
-          border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+          background: linear-gradient(90deg, rgba(21, 128, 61, 0.15) 0%, transparent 100%);
+          border-bottom: 1px solid rgba(34, 197, 94, 0.1);
         }
-        .bugrun-title {
+        .riverride-title {
           font-size: 13px;
           font-weight: 800;
           color: #e2e8f0;
@@ -1343,8 +934,8 @@ export default function DcBugRun() {
           white-space: nowrap;
           flex-shrink: 0;
         }
-        .bugrun-title span { font-size: 15px; }
-        .bugrun-score {
+        .riverride-title span { font-size: 15px; }
+        .riverride-score {
           font-size: 11px;
           font-weight: 700;
           color: #34d399;
@@ -1355,32 +946,32 @@ export default function DcBugRun() {
           border: 1px solid rgba(52, 211, 153, 0.2);
           white-space: nowrap;
         }
-        .bugrun-rec {
+        .riverride-rec {
           font-size: 9px;
           color: #94a3b8;
           font-family: monospace;
           white-space: nowrap;
         }
         @media (max-width: 480px) {
-          .bugrun-header { padding: 6px 10px; gap: 5px; }
-          .bugrun-title { font-size: 11px; gap: 4px; }
-          .bugrun-title span { font-size: 13px; }
-          .bugrun-score { font-size: 10px; padding: 2px 6px; }
-          .bugrun-rec { font-size: 8px; }
+          .riverride-header { padding: 6px 10px; gap: 5px; }
+          .riverride-title { font-size: 11px; gap: 4px; }
+          .riverride-title span { font-size: 13px; }
+          .riverride-score { font-size: 10px; padding: 2px 6px; }
+          .riverride-rec { font-size: 8px; }
         }
-        .bugrun-canvas {
+        .riverride-canvas {
           display: block;
           width: 100%;
-          aspect-ratio: 720 / 360;
+          aspect-ratio: 720 / 480;
           background: #060d1f;
-          border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+          border-bottom: 1px solid rgba(34, 197, 94, 0.1);
         }
         .canvas-wrapper {
           position: relative;
           width: 100%;
           overflow: hidden;
         }
-        .bugrun-overlay {
+        .riverride-overlay {
           position: absolute;
           top: 0; left: 0; right: 0; bottom: 0;
           display: flex;
@@ -1399,25 +990,25 @@ export default function DcBugRun() {
           from { opacity: 0; transform: scale(0.95); }
           to { opacity: 1; transform: scale(1); }
         }
-        .bugrun-overlay-title {
+        .riverride-overlay-title {
           font-size: 24px;
           font-weight: 800;
           color: #f8fafc;
           margin-bottom: 6px;
-          text-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+          text-shadow: 0 0 30px rgba(34, 197, 94, 0.3);
         }
-        .bugrun-overlay-sub {
+        .riverride-overlay-sub {
           font-size: 13px;
           color: #94a3b8;
           line-height: 1.6;
           margin-bottom: 18px;
           max-width: 420px;
         }
-        .bugrun-overlay-sub strong {
+        .riverride-overlay-sub strong {
           color: #34d399;
           font-size: 16px;
         }
-        .bugrun-newrec {
+        .riverride-newrec {
           display: inline-block;
           background: linear-gradient(90deg, #fbbf24, #f59e0b);
           color: #1a1a1a;
@@ -1432,35 +1023,35 @@ export default function DcBugRun() {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.05); }
         }
-        .bugrun-namearea {
+        .riverride-namearea {
           margin-bottom: 14px;
           width: 100%;
           max-width: 280px;
         }
-        .bugrun-namearea label {
+        .riverride-namearea label {
           display: block;
           font-size: 12px;
           color: #94a3b8;
           margin-bottom: 6px;
           text-align: left;
         }
-        .bugrun-namearea input {
+        .riverride-namearea input {
           width: 100%;
           padding: 10px 14px;
           background: rgba(15, 23, 42, 0.8);
-          border: 1px solid rgba(59, 130, 246, 0.3);
+          border: 1px solid rgba(34, 197, 94, 0.3);
           border-radius: 10px;
           color: #e2e8f0;
           font-size: 14px;
           outline: none;
           transition: all 0.2s;
         }
-        .bugrun-namearea input:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        .riverride-namearea input:focus {
+          border-color: #22c55e;
+          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
         }
-        .bugrun-btn {
-          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        .riverride-btn {
+          background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
           color: white;
           border: none;
           padding: 12px 34px;
@@ -1469,43 +1060,43 @@ export default function DcBugRun() {
           font-weight: 700;
           cursor: pointer;
           transition: all 0.2s;
-          box-shadow: 0 4px 20px rgba(37, 99, 235, 0.3);
+          box-shadow: 0 4px 20px rgba(22, 163, 74, 0.3);
           letter-spacing: 0.5px;
         }
-        .bugrun-btn:hover {
+        .riverride-btn:hover {
           transform: translateY(-2px);
-          box-shadow: 0 6px 28px rgba(37, 99, 235, 0.4);
+          box-shadow: 0 6px 28px rgba(22, 163, 74, 0.4);
         }
-        .bugrun-btn:active {
+        .riverride-btn:active {
           transform: translateY(0);
         }
-        .bugrun-hint {
+        .riverride-hint {
           margin-top: 12px;
           font-size: 10px;
           color: #64748b;
         }
         @media (max-width: 480px) {
-          .bugrun-overlay { padding: 10px 14px; }
-          .bugrun-overlay-title { font-size: 19px; margin-bottom: 4px; }
-          .bugrun-overlay-sub { font-size: 11px; margin-bottom: 12px; line-height: 1.45; }
-          .bugrun-overlay-sub strong { font-size: 14px; }
-          .bugrun-btn { padding: 9px 26px; font-size: 13px; }
-          .bugrun-hint { margin-top: 8px; font-size: 9px; }
-          .bugrun-namearea { margin-bottom: 10px; }
-          .bugrun-namearea input { padding: 8px 12px; font-size: 13px; }
+          .riverride-overlay { padding: 10px 14px; }
+          .riverride-overlay-title { font-size: 19px; margin-bottom: 4px; }
+          .riverride-overlay-sub { font-size: 11px; margin-bottom: 12px; line-height: 1.45; }
+          .riverride-overlay-sub strong { font-size: 14px; }
+          .riverride-btn { padding: 9px 26px; font-size: 13px; }
+          .riverride-hint { margin-top: 8px; font-size: 9px; }
+          .riverride-namearea { margin-bottom: 10px; }
+          .riverride-namearea input { padding: 8px 12px; font-size: 13px; }
         }
-        .bugrun-quotebar {
+        .riverride-quotebar {
           padding: 6px 16px;
-          background: rgba(30, 64, 175, 0.06);
-          border-top: 1px solid rgba(59, 130, 246, 0.08);
+          background: rgba(21, 128, 61, 0.06);
+          border-top: 1px solid rgba(34, 197, 94, 0.08);
           min-height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
         }
-        .bugrun-quote {
+        .riverride-quote {
           font-size: 12px;
-          color: #93c5fd;
+          color: #86efac;
           font-style: italic;
           text-align: center;
           opacity: 0;
@@ -1513,33 +1104,33 @@ export default function DcBugRun() {
           transition: all 0.5s ease;
           max-width: 600px;
         }
-        .bugrun-quote.visible {
+        .riverride-quote.visible {
           opacity: 1;
           transform: translateY(0);
         }
-        .bugrun-ranking {
+        .riverride-ranking {
           padding: 12px 18px;
           background: rgba(6, 13, 31, 0.5);
         }
-        .bugrun-ranking-title {
+        .riverride-ranking-title {
           font-size: 12px;
           font-weight: 700;
           color: #e2e8f0;
           margin-bottom: 10px;
           letter-spacing: 1px;
         }
-        .bugrun-ranking-list {
+        .riverride-ranking-list {
           list-style: none;
           padding: 0;
           margin: 0;
         }
-        .bugrun-ranking-empty {
+        .riverride-ranking-empty {
           color: #64748b;
           font-size: 12px;
           text-align: center;
           padding: 10px;
         }
-        .bugrun-ranking-item {
+        .riverride-ranking-item {
           display: flex;
           align-items: center;
           padding: 6px 10px;
@@ -1548,50 +1139,50 @@ export default function DcBugRun() {
           font-size: 12px;
           transition: background 0.2s;
         }
-        .bugrun-ranking-item:hover {
-          background: rgba(59, 130, 246, 0.06);
+        .riverride-ranking-item:hover {
+          background: rgba(34, 197, 94, 0.06);
         }
-        .bugrun-rank-pos {
+        .riverride-rank-pos {
           width: 28px;
           font-size: 13px;
         }
-        .bugrun-rank-pos.pos-1 { color: #fbbf24; }
-        .bugrun-rank-pos.pos-2 { color: #cbd5e1; }
-        .bugrun-rank-pos.pos-3 { color: #fb923c; }
-        .bugrun-rank-name {
+        .riverride-rank-pos.pos-1 { color: #fbbf24; }
+        .riverride-rank-pos.pos-2 { color: #cbd5e1; }
+        .riverride-rank-pos.pos-3 { color: #fb923c; }
+        .riverride-rank-name {
           flex: 1;
           color: #e2e8f0;
           font-weight: 500;
         }
-        .bugrun-rank-score {
+        .riverride-rank-score {
           color: #34d399;
           font-weight: 700;
           font-family: monospace;
         }
-        .bugrun-footer {
+        .riverride-footer {
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 8px 16px;
           background: rgba(6, 13, 31, 0.8);
-          border-top: 1px solid rgba(59, 130, 246, 0.08);
+          border-top: 1px solid rgba(34, 197, 94, 0.08);
           font-size: 10px;
           color: #475569;
         }
-        .bugrun-footer a {
-          color: #3b82f6;
+        .riverride-footer a {
+          color: #22c55e;
           text-decoration: none;
           transition: color 0.2s;
         }
-        .bugrun-footer a:hover {
-          color: #60a5fa;
+        .riverride-footer a:hover {
+          color: #4ade80;
         }
         .touch-controls {
           display: flex;
           justify-content: space-between;
           padding: 6px 12px;
           background: rgba(0,0,0,0.35);
-          border-top: 1px solid rgba(59,130,246,0.08);
+          border-top: 1px solid rgba(34,197,94,0.08);
           gap: 6px;
         }
         .touch-btn {
@@ -1612,67 +1203,65 @@ export default function DcBugRun() {
         .touch-btn:active {
           transform: scale(0.96);
         }
-        .touch-btn-brake {
-          background: rgba(239,68,68,0.12);
-          border-color: rgba(239,68,68,0.25);
-          color: #f87171;
-        }
-        .touch-btn-brake:active {
-          background: rgba(239,68,68,0.25);
-        }
-        .touch-btn-jump {
-          background: rgba(96,165,250,0.12);
-          border-color: rgba(96,165,250,0.25);
-          color: #60a5fa;
-          max-width: 80px;
-        }
-        .touch-btn-jump:active {
-          background: rgba(96,165,250,0.25);
-        }
-        .touch-btn-gas {
-          background: rgba(34,197,94,0.12);
-          border-color: rgba(34,197,94,0.25);
+        .touch-btn-up {
+          background: rgba(34, 197, 94, 0.12);
+          border-color: rgba(34, 197, 94, 0.25);
           color: #34d399;
         }
-        .touch-btn-gas:active {
-          background: rgba(34,197,94,0.25);
+        .touch-btn-up:active {
+          background: rgba(34, 197, 94, 0.25);
         }
-        .coin-legend {
+        .touch-btn-shoot {
+          background: rgba(251, 191, 36, 0.12);
+          border-color: rgba(251, 191, 36, 0.25);
+          color: #fbbf24;
+          max-width: 80px;
+        }
+        .touch-btn-shoot:active {
+          background: rgba(251, 191, 36, 0.25);
+        }
+        .touch-btn-down {
+          background: rgba(96, 165, 250, 0.12);
+          border-color: rgba(96, 165, 250, 0.25);
+          color: #60a5fa;
+        }
+        .touch-btn-down:active {
+          background: rgba(96, 165, 250, 0.25);
+        }
+        .legend-row {
           display: flex;
           justify-content: center;
           flex-wrap: wrap;
           gap: 14px;
           padding: 6px 16px;
           background: rgba(6, 13, 31, 0.5);
-          border-top: 1px solid rgba(59, 130, 246, 0.06);
+          border-top: 1px solid rgba(34, 197, 94, 0.06);
           font-size: 10px;
         }
-        .coin-legend-item {
+        .legend-item {
           display: flex;
           align-items: center;
           gap: 5px;
           color: #94a3b8;
         }
-        .coin-dot {
+        .legend-dot {
           width: 9px;
           height: 9px;
           border-radius: 50%;
         }
-        .coin-dot.good { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-        .coin-dot.bad { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
-        .boost-icon {
-          color: #f59e0b;
+        .legend-dot.fuel { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+        .legend-dot.enemy { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+        .legend-icon {
           font-size: 11px;
         }
       `}</style>
 
       <div className="container">
-        <div className="bugrun-card">
+        <div className="riverride-card">
 
-          {/* Header */}
-          <div className="bugrun-header">
-            <div className="bugrun-title">
-              <span>🚗</span> DC HILL CLIMB
+          <div className="riverride-header">
+            <div className="riverride-title">
+              <span>✈️</span> DC RIVER RIDE
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -1685,36 +1274,36 @@ export default function DcBugRun() {
                   }} />
                 </div>
               </div>
-              <span className="bugrun-score">{score.toString().padStart(4, "0")}m</span>
-              <span className="bugrun-rec">REC:{highScore.toString().padStart(4, "0")}m</span>
+              <span className="riverride-score">{score.toString().padStart(4, "0")}m</span>
+              <span className="riverride-rec">REC:{highScore.toString().padStart(4, "0")}m</span>
             </div>
           </div>
 
-          {/* Canvas with overlay */}
           <div className="canvas-wrapper">
             <canvas
               ref={canvasRef}
               width={CANVAS_W}
               height={CANVAS_H}
-              className="bugrun-canvas"
+              className="riverride-canvas"
             />
             {gameState !== "playing" && (
-              <div className="bugrun-overlay">
-                <div className="bugrun-overlay-title">
-                  {gameState === "menu" ? "🚗 DC Hill Climb" : gameOverReason === "fuel" ? "⛽ Sem combustivel!" : gameOverReason === "rock" ? "💥 Bateu numa pedra!" : gameOverReason === "deathwall" ? "⏰ O tempo te alcancou!" : "💥 Capotou!"}
+              <div className="riverride-overlay">
+                <div className="riverride-overlay-title">
+                  {gameState === "menu" ? "✈️ DC River Ride" : gameOverReason === "fuel" ? "⛽ Sem combustivel!" : gameOverReason === "crash" ? "💥 Bateu nas margens!" : gameOverReason === "enemy" ? "💥 Inimigo te derrubou!" : "💥 Fim de jogo!"}
                 </div>
-                <div className="bugrun-overlay-sub">
+                <div className="riverride-overlay-sub">
                   {gameState === "menu" ? (
-                    <>Acelere morro acima, colete moedas e pule nos picos!<br />
-                    🟢 Moeda verde = +combustivel | 🔴 Moeda vermelha = -combustivel<br />
-                    🪨 Pedras no chao so passa pulando!<br />
-                    ⚡ Boost da velocidade mas gasta mais combustivel<br />
-                    👻 Fantasma DC compete com você — as vezes na frente, as vezes atras!<br />
-                    Use ← Freio | → Gas | ↑ Pular</>
+                    <>Voe pelo rio, atire nos inimigos e colete combustivel!<br />
+                    ⬆⬇ Sobe/Desce | ESPACO Atira<br />
+                    🟢 Posto DC = +combustivel | 🔴 Inimigos = evite ou destrua!<br />
+                    🌉 Pontes = troca de fase com easter eggs de codigo no rio!<br />
+                    👻 Fantasma DC compete com voce!<br />
+                    Use ⬆ Sobe | ⬇ Desce | ESPACO Atira</>
                   ) : (
                     <>
                       Distancia: <strong>{score}m</strong> | Recorde: <strong>{highScore}m</strong><br />
-                      {score >= highScore && score > 0 ? <span className="bugrun-newrec">🎉 Novo recorde!</span> : null}
+                      Fase alcancada: <strong>{phase}</strong><br />
+                      {score >= highScore && score > 0 ? <span className="riverride-newrec">🎉 Novo recorde!</span> : null}
                       <br />
                       <span style={{ color: "#fdba74" }}>👻 Fantasma DC venceu por {ghostGap}m!</span>
                     </>
@@ -1722,10 +1311,10 @@ export default function DcBugRun() {
                 </div>
 
                 {gameState === "gameover" && (
-                  <div className="bugrun-namearea">
+                  <div className="riverride-namearea">
                     <label>Qual seu primeiro nome?</label>
                     <input
-                      id="hill-name-input"
+                      id="river-name-input"
                       type="text"
                       value={playerName}
                       onChange={(e) => setPlayerName(e.target.value)}
@@ -1736,86 +1325,81 @@ export default function DcBugRun() {
                   </div>
                 )}
 
-                <button className="bugrun-btn" onClick={handleStart}>
+                <button className="riverride-btn" onClick={handleStart}>
                   {gameState === "menu" ? "▶ Jogar" : "↻ Tentar de novo"}
                 </button>
-                <div className="bugrun-hint">← Freio | → Gas | ↑ Pular | 🟢 +combustivel | 🔴 -combustivel | 🪨 Pule as pedras</div>
+                <div className="riverride-hint">⬆ Sobe | ⬇ Desce | ESPACO Atira | 🟢 +combustivel | 🔴 Inimigos</div>
               </div>
             )}
           </div>
 
-          {/* Touch controls */}
           {gameState === "playing" && (
             <div className="touch-controls">
               <button
-                className="touch-btn touch-btn-brake"
-                onTouchStart={(e) => { e.preventDefault(); brakeStart(); }}
-                onTouchEnd={(e) => { e.preventDefault(); brakeEnd(); }}
-                onMouseDown={brakeStart} onMouseUp={brakeEnd} onMouseLeave={brakeEnd}
-              >◀ FREIO</button>
+                className="touch-btn touch-btn-up"
+                onTouchStart={(e) => { e.preventDefault(); upStart(); }}
+                onTouchEnd={(e) => { e.preventDefault(); upEnd(); }}
+                onMouseDown={upStart} onMouseUp={upEnd} onMouseLeave={upEnd}
+              >⬆ SOBE</button>
               <button
-                className="touch-btn touch-btn-jump"
-                onTouchStart={(e) => { e.preventDefault(); jumpStart(); }}
-                onTouchEnd={(e) => { e.preventDefault(); jumpEnd(); }}
-                onMouseDown={jumpStart} onMouseUp={jumpEnd} onMouseLeave={jumpEnd}
-              >⬆ PULAR</button>
+                className="touch-btn touch-btn-shoot"
+                onTouchStart={(e) => { e.preventDefault(); shootStart(); }}
+                onTouchEnd={(e) => { e.preventDefault(); shootEnd(); }}
+                onMouseDown={shootStart} onMouseUp={shootEnd} onMouseLeave={shootEnd}
+              >🔥 ATIRAR</button>
               <button
-                className="touch-btn touch-btn-gas"
-                onTouchStart={(e) => { e.preventDefault(); gasStart(); }}
-                onTouchEnd={(e) => { e.preventDefault(); gasEnd(); }}
-                onMouseDown={gasStart} onMouseUp={gasEnd} onMouseLeave={gasEnd}
-              >GAS ▶</button>
+                className="touch-btn touch-btn-down"
+                onTouchStart={(e) => { e.preventDefault(); downStart(); }}
+                onTouchEnd={(e) => { e.preventDefault(); downEnd(); }}
+                onMouseDown={downStart} onMouseUp={downEnd} onMouseLeave={downEnd}
+              >⬇ DESCE</button>
             </div>
           )}
 
-          {/* Legend (moedas + boost combinados numa linha compacta) */}
-          <div className="coin-legend">
-            <div className="coin-legend-item">
-              <div className="coin-dot good" />
-              <span>+combustivel</span>
+          <div className="legend-row">
+            <div className="legend-item">
+              <div className="legend-dot fuel" />
+              <span>Posto DC = +combustivel</span>
             </div>
-            <div className="coin-legend-item">
-              <div className="coin-dot bad" />
-              <span>-combustivel</span>
+            <div className="legend-item">
+              <div className="legend-dot enemy" />
+              <span>Inimigos = pontos</span>
             </div>
-            <div className="coin-legend-item">
-              <span className="boost-icon">⚡</span>
-              <span>Boost = velocidade extra</span>
+            <div className="legend-item">
+              <span className="legend-icon">🌉</span>
+              <span>Pontes = nova fase</span>
             </div>
-            <div className="coin-legend-item">
+            <div className="legend-item">
               <span>👻 Fantasma DC — rival</span>
             </div>
           </div>
 
-          {/* Quote bar */}
-          <div className="bugrun-quotebar">
-            <div className={`bugrun-quote ${quoteVisible ? "visible" : ""}`}>
+          <div className="riverride-quotebar">
+            <div className={`riverride-quote ${quoteVisible ? "visible" : ""}`}>
               {quoteText}
             </div>
           </div>
 
-          {/* Ranking */}
-          <div className="bugrun-ranking">
-            <div className="bugrun-ranking-title">🏆 TOP 10 HILL CLIMBERS</div>
-            <ul className="bugrun-ranking-list">
+          <div className="riverride-ranking">
+            <div className="riverride-ranking-title">🏆 TOP 10 RIVER RIDERS</div>
+            <ul className="riverride-ranking-list">
               {ranking.length === 0 ? (
-                <li className="bugrun-ranking-empty">Ninguem jogou ainda. Seja o primeiro! 🚗</li>
+                <li className="riverride-ranking-empty">Ninguem jogou ainda. Seja o primeiro! ✈️</li>
               ) : (
                 ranking.map((entry, i) => (
-                  <li key={i} className={`bugrun-ranking-item rank-${i + 1}`}>
-                    <span className={`bugrun-rank-pos ${i < 3 ? `pos-${i + 1}` : ""}`}>
+                  <li key={i} className={`riverride-ranking-item rank-${i + 1}`}>
+                    <span className={`riverride-rank-pos ${i < 3 ? `pos-${i + 1}` : ""}`}>
                       {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
                     </span>
-                    <span className="bugrun-rank-name">{entry.name}</span>
-                    <span className="bugrun-rank-score">{entry.score}m</span>
+                    <span className="riverride-rank-name">{entry.name}</span>
+                    <span className="riverride-rank-score">{entry.score}m</span>
                   </li>
                 ))
               )}
             </ul>
           </div>
 
-          {/* Footer */}
-          <div className="bugrun-footer">
+          <div className="riverride-footer">
             <span>DCTECH — SOLUCOES EM SISTEMAS</span>
             <a href="#contato">Precisa de um dev? →</a>
           </div>
