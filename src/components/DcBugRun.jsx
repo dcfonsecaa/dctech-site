@@ -13,23 +13,23 @@ const QUOTES = [
   { text: '"Sob medida, igual os sistemas que entrego."', author: "— Denis" },
 ];
 
-const CODE_EASTER_EGGS = [
-  "<div>", "</div>", "{props}", "useState()", "npm i", "git push",
-  "console.log", "return null", "/* TODO */", "<br/>", "yarn dev",
-  "docker run", "API_KEY", "404", "200 OK", "SELECT *", "JSON.parse",
-  "async/await", "try/catch", "import React", "export default",
-  "margin: 0", "flex: 1", "grid-gap", "@media", "function()",
-  "=> {}", "undefined", "NaN", "null", "true", "false",
-  "git commit", "git merge", "git pull", "main branch",
-  "deploy", "build", "vercel --prod", "supabase", "tailwind",
-  "typescript", "javascript", "python", "java", "spring boot",
-  "REST API", "GraphQL", "WebSocket", "OAuth2", "JWT",
+const CODE_EGGS = [
+  "<div>","</div>","{props}","useState()","npm i","git push",
+  "console.log","return null","/* TODO */","<br/>","yarn dev",
+  "docker run","API_KEY","404","200 OK","SELECT *","JSON.parse",
+  "async/await","try/catch","import React","export default",
+  "margin: 0","flex: 1","grid-gap","@media","function()",
+  "=> {}","undefined","NaN","null","true","false",
+  "git commit","git merge","git pull","main branch",
+  "deploy","build","vercel --prod","supabase","tailwind",
+  "typescript","javascript","python","java","spring boot",
+  "REST API","GraphQL","WebSocket","OAuth2","JWT",
 ];
 
 const CANVAS_W = 720;
 const CANVAS_H = 480;
 const FUEL_MAX = 200;
-const BULLET_SPEED = 8;
+const BULLET_SPEED = 9;
 
 export default function DcBugRun() {
   const canvasRef = useRef(null);
@@ -50,6 +50,8 @@ export default function DcBugRun() {
   const [gameOverReason, setGameOverReason] = useState("");
   const [phase, setPhase] = useState(1);
   const [ghostGap, setGhostGap] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [invincible, setInvincible] = useState(false);
 
   const keysRef = useRef({ up: false, down: false, shoot: false, shootPressed: false });
 
@@ -57,28 +59,30 @@ export default function DcBugRun() {
     running: false,
     animId: null,
     lastQuoteIdx: -1,
-    plane: { x: 80, y: CANVAS_H / 2, vy: 0, fuel: FUEL_MAX, alive: true },
+    plane: { x: 80, y: CANVAS_H / 2, vy: 0, fuel: FUEL_MAX },
     camera: 0,
-    scrollSpeed: 2,
+    scrollSpeed: 2.5,
     frame: 0,
     score: 0,
     phase: 1,
-    nextBridge: 800,
+    nextBridge: 600,
     bullets: [],
     enemies: [],
     fuelStations: [],
+    mines: [],
+    powerUps: [],
     particles: [],
     riverBanks: [],
     bridges: [],
     easterEggs: [],
-    clouds: Array.from({ length: 6 }, () => ({
+    clouds: Array.from({ length: 8 }, () => ({
       x: Math.random() * CANVAS_W * 2,
       y: Math.random() * 80 + 10,
       w: 50 + Math.random() * 60,
       h: 15 + Math.random() * 10,
       speed: 0.3 + Math.random() * 0.3,
     })),
-    stars: Array.from({ length: 40 }, () => ({
+    stars: Array.from({ length: 50 }, () => ({
       x: Math.random() * CANVAS_W,
       y: Math.random() * 100,
       r: Math.random() * 1.5 + 0.3,
@@ -86,6 +90,9 @@ export default function DcBugRun() {
       twinkle: Math.random() * Math.PI * 2,
     })),
     ghost: { x: -100, y: CANVAS_H / 2, offset: 0 },
+    combo: { count: 0, timer: 0 },
+    invincible: false,
+    invTimer: 0,
     playerSkill: { avgScore: 0, gamesPlayed: 0, bestScores: [] },
   });
 
@@ -114,8 +121,14 @@ export default function DcBugRun() {
     try { localStorage.setItem("dcriverride_skill", JSON.stringify(skill)); } catch {}
   }, []);
 
-  const showQuote = useCallback(() => {
+  const showQuote = useCallback((customText) => {
     const g = gameRef.current;
+    if (customText) {
+      setQuoteText(customText);
+      setQuoteVisible(true);
+      setTimeout(() => setQuoteVisible(false), 4000);
+      return;
+    }
     let idx;
     do { idx = Math.floor(Math.random() * QUOTES.length); }
     while (idx === g.lastQuoteIdx && QUOTES.length > 1);
@@ -135,6 +148,8 @@ export default function DcBugRun() {
     setGameOverReason(reason);
     setGameState("gameover");
     setGhostGap(Math.max(0, Math.round(g.ghost.offset / 10)));
+    setCombo(0);
+    setInvincible(false);
     if (finalScore > highScoreRef.current) {
       setHighScore(finalScore);
       try { localStorage.setItem("dcriverride_high", finalScore.toString()); } catch {}
@@ -149,15 +164,15 @@ export default function DcBugRun() {
 
   const generateRiverBanks = useCallback((startX, count, phase) => {
     const banks = [];
-    let leftY = 80;
-    let rightY = CANVAS_H - 80;
-    const diff = 1 + (phase - 1) * 0.3;
+    let leftY = 90;
+    let rightY = CANVAS_H - 90;
+    const diff = 1 + (phase - 1) * 0.25;
     for (let i = 0; i < count; i++) {
       const x = startX + i * 4;
-      leftY += Math.sin(x * 0.01 + phase * 0.5) * 2 * diff + (Math.random() - 0.5) * 1.5;
-      rightY += Math.sin(x * 0.008 + phase * 0.3) * 2 * diff + (Math.random() - 0.5) * 1.5;
-      leftY = Math.max(40, Math.min(180, leftY));
-      rightY = Math.max(CANVAS_H - 180, Math.min(CANVAS_H - 40, rightY));
+      leftY += Math.sin(x * 0.012 + phase * 0.7) * 2.5 * diff + (Math.random() - 0.5) * 2;
+      rightY += Math.sin(x * 0.009 + phase * 0.4) * 2.5 * diff + (Math.random() - 0.5) * 2;
+      leftY = Math.max(50, Math.min(170, leftY));
+      rightY = Math.max(CANVAS_H - 170, Math.min(CANVAS_H - 50, rightY));
       banks.push({ x, leftY, rightY });
     }
     return banks;
@@ -178,7 +193,7 @@ export default function DcBugRun() {
     const plane = g.plane;
     const camX = g.camera;
 
-    // Sky gradient
+    // Sky
     const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
     sky.addColorStop(0, "#030712");
     sky.addColorStop(0.4, "#0a1a0a");
@@ -204,7 +219,7 @@ export default function DcBugRun() {
       c.x -= c.speed;
       if (c.x < -c.w) c.x = canvas.width + c.w;
       const cx = c.x - camX * 0.1;
-      ctx.globalAlpha = 0.15;
+      ctx.globalAlpha = 0.12;
       ctx.fillStyle = "#1e3a2f";
       ctx.beginPath();
       ctx.ellipse(cx, c.y, c.w / 2, c.h / 2, 0, 0, Math.PI * 2);
@@ -221,31 +236,22 @@ export default function DcBugRun() {
     // River banks
     const banks = g.riverBanks;
     if (banks.length > 1) {
-      // Left bank
       ctx.beginPath();
       ctx.moveTo(banks[0].x - camX, 0);
       banks.forEach(p => ctx.lineTo(p.x - camX, p.leftY));
       ctx.lineTo(banks[banks.length - 1].x - camX, 0);
       ctx.closePath();
-      const leftGrad = ctx.createLinearGradient(0, 0, 0, canvas.height / 2);
-      leftGrad.addColorStop(0, "#1a3a1c");
-      leftGrad.addColorStop(1, "#2d5016");
-      ctx.fillStyle = leftGrad;
+      ctx.fillStyle = "#1a3a1c";
       ctx.fill();
 
-      // Right bank
       ctx.beginPath();
       ctx.moveTo(banks[0].x - camX, canvas.height);
       banks.forEach(p => ctx.lineTo(p.x - camX, p.rightY));
       ctx.lineTo(banks[banks.length - 1].x - camX, canvas.height);
       ctx.closePath();
-      const rightGrad = ctx.createLinearGradient(0, canvas.height / 2, 0, canvas.height);
-      rightGrad.addColorStop(0, "#2d5016");
-      rightGrad.addColorStop(1, "#1a3a1c");
-      ctx.fillStyle = rightGrad;
+      ctx.fillStyle = "#1a3a1c";
       ctx.fill();
 
-      // River water
       ctx.beginPath();
       ctx.moveTo(banks[0].x - camX, banks[0].leftY);
       banks.forEach(p => ctx.lineTo(p.x - camX, p.leftY));
@@ -261,10 +267,10 @@ export default function DcBugRun() {
       ctx.fillStyle = waterGrad;
       ctx.fill();
 
-      // Water shimmer
-      ctx.strokeStyle = "rgba(34, 197, 94, 0.15)";
+      // Water lines
+      ctx.strokeStyle = "rgba(34, 197, 94, 0.1)";
       ctx.lineWidth = 1;
-      for (let wy = 100; wy < canvas.height - 100; wy += 25) {
+      for (let wy = 100; wy < canvas.height - 100; wy += 20) {
         ctx.beginPath();
         for (let wx = Math.floor(camX / 20) * 20; wx < camX + canvas.width + 20; wx += 20) {
           const left = getBankY(banks, wx, true);
@@ -284,16 +290,13 @@ export default function DcBugRun() {
       const ex = egg.x - camX;
       const left = getBankY(banks, egg.x, true);
       const right = getBankY(banks, egg.x, false);
-      const ey = left + (right - left) * 0.85;
+      const ey = left + (right - left) * 0.88;
       ctx.save();
-      ctx.globalAlpha = 0.4 + Math.sin(g.frame * 0.03 + egg.x) * 0.15;
+      ctx.globalAlpha = 0.3 + Math.sin(g.frame * 0.03 + egg.x) * 0.1;
       ctx.fillStyle = "#22c55e";
       ctx.font = "bold 9px monospace";
       ctx.textAlign = "center";
-      ctx.shadowColor = "#22c55e";
-      ctx.shadowBlur = 4;
       ctx.fillText(egg.text, ex, ey);
-      ctx.shadowBlur = 0;
       ctx.restore();
     });
 
@@ -305,26 +308,29 @@ export default function DcBugRun() {
       const right = getBankY(banks, bridge.x, false);
       ctx.save();
       ctx.fillStyle = "#475569";
-      ctx.fillRect(bx - 4, left, 8, right - left);
+      ctx.fillRect(bx - 5, left, 10, right - left);
       ctx.fillStyle = "#64748b";
-      ctx.fillRect(bx - 6, left, 12, 6);
-      ctx.fillRect(bx - 6, right - 6, 12, 6);
+      ctx.fillRect(bx - 8, left, 16, 8);
+      ctx.fillRect(bx - 8, right - 8, 16, 8);
       ctx.strokeStyle = "#334155";
       ctx.lineWidth = 2;
-      for (let by = left + 10; by < right - 10; by += 20) {
+      for (let by = left + 15; by < right - 15; by += 25) {
         ctx.beginPath();
-        ctx.moveTo(bx - 4, by);
-        ctx.lineTo(bx + 4, by);
+        ctx.moveTo(bx - 5, by);
+        ctx.lineTo(bx + 5, by);
         ctx.stroke();
       }
       ctx.fillStyle = "#fbbf24";
-      ctx.font = "bold 11px Arial";
+      ctx.font = "bold 12px Arial";
       ctx.textAlign = "center";
-      ctx.fillText(`FASE ${bridge.phase}`, bx, left - 10);
+      ctx.shadowColor = "#f59e0b";
+      ctx.shadowBlur = 8;
+      ctx.fillText(`FASE ${bridge.phase}`, bx, left - 12);
+      ctx.shadowBlur = 0;
       ctx.restore();
     });
 
-    // Fuel stations
+    // Fuel stations (Postos DC - VERDES)
     g.fuelStations.forEach(fs => {
       if (fs.x < camX - 50 || fs.x > camX + canvas.width + 50) return;
       const fx = fs.x - camX;
@@ -332,18 +338,93 @@ export default function DcBugRun() {
       const right = getBankY(banks, fs.x, false);
       const fy = left + (right - left) * 0.5;
       ctx.save();
-      ctx.globalAlpha = 0.6 + Math.sin(g.frame * 0.08) * 0.3;
+      const pulse = 0.5 + Math.sin(g.frame * 0.1) * 0.3;
+      ctx.globalAlpha = pulse;
       ctx.fillStyle = "#22c55e";
       ctx.shadowColor = "#22c55e";
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = "#14532d";
+      ctx.font = "bold 10px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("DC", fx, fy);
+      // Fuel icon
+      ctx.globalAlpha = 0.6 + Math.sin(g.frame * 0.08) * 0.3;
+      ctx.font = "14px Arial";
+      ctx.fillText("⛽", fx, fy - 22);
+      ctx.restore();
+    });
+
+    // Mines (BOMBAS VERMELHAS - drenam combustível)
+    g.mines.forEach(m => {
+      if (m.x < camX - 50 || m.x > camX + canvas.width + 50) return;
+      const mx = m.x - camX;
+      const left = getBankY(banks, m.x, true);
+      const right = getBankY(banks, m.x, false);
+      const my = left + (right - left) * (0.3 + Math.sin(g.frame * 0.02 + m.x) * 0.2);
+      ctx.save();
+      const pulse = 0.5 + Math.sin(g.frame * 0.15 + m.x) * 0.3;
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = "#ef4444";
+      ctx.shadowColor = "#ef4444";
       ctx.shadowBlur = 15;
       ctx.beginPath();
-      ctx.arc(fx, fy, 10, 0, Math.PI * 2);
+      ctx.arc(mx, my, 12, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#14532d";
-      ctx.font = "bold 8px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("DC", fx, fy + 2.5);
       ctx.shadowBlur = 0;
+      // Mine spikes
+      ctx.strokeStyle = "#dc2626";
+      ctx.lineWidth = 2;
+      for (let a = 0; a < 8; a++) {
+        const angle = (a / 8) * Math.PI * 2 + g.frame * 0.02;
+        ctx.beginPath();
+        ctx.moveTo(mx + Math.cos(angle) * 10, my + Math.sin(angle) * 10);
+        ctx.lineTo(mx + Math.cos(angle) * 16, my + Math.sin(angle) * 16);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = "#7f1d1d";
+      ctx.font = "bold 9px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("-FUEL", mx, my);
+      ctx.restore();
+    });
+
+    // Power-ups
+    g.powerUps.forEach(pu => {
+      if (pu.x < camX - 50 || pu.x > camX + canvas.width + 50) return;
+      const px = pu.x - camX;
+      const left = getBankY(banks, pu.x, true);
+      const right = getBankY(banks, pu.x, false);
+      const py = left + (right - left) * 0.5 + Math.sin(g.frame * 0.05 + pu.x) * 20;
+      ctx.save();
+      ctx.globalAlpha = 0.7 + Math.sin(g.frame * 0.1) * 0.2;
+      if (pu.type === "shield") {
+        ctx.fillStyle = "#60a5fa";
+        ctx.shadowColor = "#3b82f6";
+      } else if (pu.type === "rapid") {
+        ctx.fillStyle = "#fbbf24";
+        ctx.shadowColor = "#f59e0b";
+      } else {
+        ctx.fillStyle = "#a855f7";
+        ctx.shadowColor = "#9333ea";
+      }
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(px, py, 12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 10px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(pu.type === "shield" ? "🛡️" : pu.type === "rapid" ? "⚡" : "💥", px, py);
       ctx.restore();
     });
 
@@ -353,41 +434,75 @@ export default function DcBugRun() {
       const ex = enemy.x - camX;
       ctx.save();
       ctx.translate(ex, enemy.y);
+
       if (enemy.type === "ship") {
+        // Ship body
         ctx.fillStyle = "#dc2626";
         ctx.beginPath();
-        ctx.moveTo(0, -8);
-        ctx.lineTo(12, 0);
-        ctx.lineTo(0, 8);
-        ctx.lineTo(-8, 4);
+        ctx.moveTo(0, -10);
+        ctx.lineTo(16, 0);
+        ctx.lineTo(0, 10);
+        ctx.lineTo(-10, 5);
         ctx.closePath();
         ctx.fill();
+        // Detail
         ctx.fillStyle = "#7f1d1d";
-        ctx.fillRect(-6, -2, 8, 4);
+        ctx.fillRect(-8, -3, 12, 6);
+        // Wake
+        if (g.frame % 4 === 0) {
+          g.particles.push({
+            x: enemy.x - 12, y: enemy.y + (Math.random() - 0.5) * 6,
+            vx: -1 - Math.random(), vy: (Math.random() - 0.5) * 0.5,
+            r: 1.5, color: "rgba(34, 197, 94, 0.3)",
+            life: 8, maxLife: 8,
+          });
+        }
       } else if (enemy.type === "heli") {
         ctx.fillStyle = "#f59e0b";
         ctx.beginPath();
-        ctx.ellipse(0, 0, 12, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 14, 7, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = "#92400e";
-        ctx.fillRect(-2, -10, 4, 8);
+        ctx.fillRect(-3, -14, 6, 10);
+        // Rotor
         ctx.strokeStyle = "#d97706";
         ctx.lineWidth = 2;
+        const bladeAngle = g.frame * 0.4;
         ctx.beginPath();
-        ctx.moveTo(-18, -10);
-        ctx.lineTo(18, -10);
+        ctx.moveTo(-22, -14);
+        ctx.lineTo(22, -14);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, -14);
+        ctx.lineTo(0, -20);
         ctx.stroke();
       } else if (enemy.type === "jet") {
         ctx.fillStyle = "#ef4444";
         ctx.beginPath();
-        ctx.moveTo(14, 0);
-        ctx.lineTo(-10, -8);
+        ctx.moveTo(18, 0);
+        ctx.lineTo(-12, -10);
         ctx.lineTo(-6, 0);
-        ctx.lineTo(-10, 8);
+        ctx.lineTo(-12, 10);
         ctx.closePath();
         ctx.fill();
         ctx.fillStyle = "#7f1d1d";
-        ctx.fillRect(-8, -2, 6, 4);
+        ctx.fillRect(-10, -3, 8, 6);
+        // Engine glow
+        ctx.fillStyle = "#f59e0b";
+        ctx.globalAlpha = 0.5 + Math.sin(g.frame * 0.3) * 0.3;
+        ctx.beginPath();
+        ctx.arc(-14, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (enemy.type === "tanker") {
+        // Big slow tanker
+        ctx.fillStyle = "#854d0e";
+        ctx.fillRect(-16, -10, 32, 20);
+        ctx.fillStyle = "#a16207";
+        ctx.fillRect(-12, -6, 24, 12);
+        ctx.fillStyle = "#dc2626";
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
       }
       ctx.restore();
     });
@@ -398,11 +513,16 @@ export default function DcBugRun() {
       ctx.save();
       ctx.fillStyle = "#fbbf24";
       ctx.shadowColor = "#f59e0b";
-      ctx.shadowBlur = 6;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.arc(bx, b.y, 3, 0, Math.PI * 2);
+      ctx.arc(bx, b.y, 4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
+      // Trail
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = "#fef08a";
+      ctx.beginPath();
+      ctx.arc(bx - 6, b.y, 2, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     });
 
@@ -420,23 +540,39 @@ export default function DcBugRun() {
     });
     ctx.globalAlpha = 1;
 
+    // Combo display
+    if (g.combo.count > 1 && g.combo.timer > 0) {
+      const cx = plane.x - camX;
+      const cy = plane.y - 35;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, g.combo.timer / 30);
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
+      ctx.shadowColor = "#f59e0b";
+      ctx.shadowBlur = 10;
+      ctx.fillText(`COMBO x${g.combo.count}!`, cx, cy);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
     // Ghost plane
     const ghost = g.ghost;
     const ghostX = ghost.x - camX;
     if (ghostX > -60 && ghostX < canvas.width + 60) {
       ctx.save();
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = 0.45;
       ctx.translate(ghostX, ghost.y);
       ctx.fillStyle = "#f97316";
       ctx.beginPath();
-      ctx.moveTo(14, 0);
-      ctx.lineTo(-10, -10);
-      ctx.lineTo(-6, 0);
-      ctx.lineTo(-10, 10);
+      ctx.moveTo(16, 0);
+      ctx.lineTo(-12, -12);
+      ctx.lineTo(-8, 0);
+      ctx.lineTo(-12, 12);
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = "#fb923c";
-      ctx.fillRect(-4, -14, 8, 28);
+      ctx.fillRect(-5, -16, 10, 32);
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.font = "bold 10px Arial";
       ctx.textAlign = "center";
@@ -447,7 +583,7 @@ export default function DcBugRun() {
       ctx.fillStyle = "#fdba74";
       ctx.font = "bold 9px Arial";
       ctx.textAlign = "center";
-      ctx.fillText("👻 DC", ghostX, ghost.y - 20);
+      ctx.fillText("👻 DC", ghostX, ghost.y - 24);
       ctx.restore();
     }
 
@@ -456,63 +592,91 @@ export default function DcBugRun() {
     const py = plane.y;
     ctx.save();
     ctx.translate(px, py);
+
+    // Invincibility shield
+    if (g.invincible) {
+      ctx.globalAlpha = 0.3 + Math.sin(g.frame * 0.2) * 0.2;
+      ctx.strokeStyle = "#60a5fa";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 28, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(96, 165, 250, 0.1)";
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // Shadow
     ctx.globalAlpha = 0.2;
     ctx.fillStyle = "#000";
     ctx.beginPath();
-    ctx.ellipse(0, 18, 20, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 22, 22, 6, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
+
+    // Body
     ctx.fillStyle = "#1e40af";
     ctx.beginPath();
-    ctx.moveTo(16, 0);
-    ctx.lineTo(-12, -10);
-    ctx.lineTo(-8, 0);
-    ctx.lineTo(-12, 10);
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-14, -12);
+    ctx.lineTo(-10, 0);
+    ctx.lineTo(-14, 12);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#3b82f6";
     ctx.lineWidth = 1.5;
     ctx.stroke();
+
+    // Wings
     ctx.fillStyle = "#2563eb";
-    ctx.fillRect(-6, -16, 10, 32);
+    ctx.fillRect(-7, -18, 12, 36);
     ctx.strokeStyle = "#60a5fa";
     ctx.lineWidth = 1;
-    ctx.strokeRect(-6, -16, 10, 32);
+    ctx.strokeRect(-7, -18, 12, 36);
+
+    // Tail
     ctx.fillStyle = "#1d4ed8";
     ctx.beginPath();
-    ctx.moveTo(-10, 0);
-    ctx.lineTo(-18, -8);
-    ctx.lineTo(-14, 0);
-    ctx.lineTo(-18, 8);
+    ctx.moveTo(-12, 0);
+    ctx.lineTo(-22, -10);
+    ctx.lineTo(-16, 0);
+    ctx.lineTo(-22, 10);
     ctx.closePath();
     ctx.fill();
+
+    // DC text
     ctx.fillStyle = "#fef08a";
-    ctx.font = "bold 8px Arial";
+    ctx.font = "bold 9px Arial";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.shadowColor = "#fef08a";
     ctx.shadowBlur = 4;
     ctx.fillText("DC", 2, 0);
     ctx.shadowBlur = 0;
+
+    // Engine
     ctx.fillStyle = "#f59e0b";
     ctx.globalAlpha = 0.6 + Math.sin(g.frame * 0.2) * 0.3;
     ctx.beginPath();
-    ctx.arc(-14, 0, 4, 0, Math.PI * 2);
+    ctx.arc(-16, 0, 5, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
+
+    // Shooting flash
     if (keysRef.current.shoot && g.running) {
       ctx.fillStyle = "#fbbf24";
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 0.9;
       ctx.beginPath();
-      ctx.arc(18, 0, 5, 0, Math.PI * 2);
+      ctx.arc(20, 0, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
+
     ctx.restore();
 
     // HUD
     const fuelPct = plane.fuel / FUEL_MAX;
-    const barW = 120, barH = 10, barX = 14, barY = 14;
+    const barW = 140, barH = 12, barX = 14, barY = 14;
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.beginPath();
     ctx.roundRect(barX - 2, barY - 2, barW + 4, barH + 4, 6);
@@ -532,51 +696,68 @@ export default function DcBugRun() {
     ctx.fillStyle = "#cbd5e1";
     ctx.font = "bold 11px Arial";
     ctx.textAlign = "left";
-    ctx.fillText("⛽", barX, barY + 24);
+    ctx.fillText("⛽", barX, barY + 26);
     ctx.fillStyle = "#94a3b8";
     ctx.font = "10px Arial";
-    ctx.fillText(`${Math.round(fuelPct * 100)}%`, barX + 20, barY + 24);
+    ctx.fillText(`${Math.round(fuelPct * 100)}%`, barX + 22, barY + 26);
 
+    // Phase
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
-    ctx.roundRect(14, 44, 80, 18, 6);
+    ctx.roundRect(14, 48, 90, 20, 6);
     ctx.fill();
     ctx.fillStyle = "#fbbf24";
-    ctx.font = "bold 10px Arial";
+    ctx.font = "bold 11px Arial";
     ctx.textAlign = "left";
-    ctx.fillText(`FASE ${g.phase}`, 20, 56);
+    ctx.fillText(`FASE ${g.phase}`, 20, 62);
 
+    // Score
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.beginPath();
-    ctx.roundRect(canvas.width - 110, 10, 100, 26, 8);
+    ctx.roundRect(canvas.width - 120, 10, 110, 28, 8);
     ctx.fill();
     ctx.strokeStyle = "rgba(34, 197, 94, 0.2)";
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = "#34d399";
-    ctx.font = "bold 13px monospace";
+    ctx.font = "bold 14px monospace";
     ctx.textAlign = "right";
-    ctx.fillText(`${g.score}m`, canvas.width - 16, 28);
+    ctx.fillText(`${g.score}m`, canvas.width - 18, 30);
 
+    // High score
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
-    ctx.roundRect(canvas.width - 110, 42, 100, 20, 6);
+    ctx.roundRect(canvas.width - 120, 46, 110, 22, 6);
     ctx.fill();
     ctx.fillStyle = "#60a5fa";
     ctx.font = "11px monospace";
     ctx.textAlign = "right";
-    ctx.fillText(`REC: ${highScoreRef.current}m`, canvas.width - 16, 56);
+    ctx.fillText(`REC: ${highScoreRef.current}m`, canvas.width - 18, 62);
 
-    const gapMeters = Math.round(ghost.offset / 10);
+    // Ghost gap
+    const gapMeters = Math.round(g.ghost.offset / 10);
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
-    ctx.roundRect(14, 66, 100, 18, 6);
+    ctx.roundRect(14, 74, 110, 20, 6);
     ctx.fill();
     ctx.fillStyle = gapMeters >= 0 ? "#fb923c" : "#34d399";
     ctx.font = "bold 10px Arial";
     ctx.textAlign = "left";
-    ctx.fillText(`👻${gapMeters >= 0 ? "+" : ""}${gapMeters}m`, 20, 78);
+    ctx.fillText(`👻${gapMeters >= 0 ? "+" : ""}${gapMeters}m`, 20, 88);
 
+    // Combo indicator
+    if (g.combo.count > 1) {
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.beginPath();
+      ctx.roundRect(canvas.width - 120, 74, 110, 20, 6);
+      ctx.fill();
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = "bold 10px Arial";
+      ctx.textAlign = "right";
+      ctx.fillText(`🔥 COMBO x${g.combo.count}`, canvas.width - 18, 88);
+    }
+
+    // Controls hint
     if (g.running) {
       ctx.font = "bold 10px Arial";
       ["⬆ SOBE", "⬇ DESCE", "SPACE ATIRA"].forEach((label, i) => {
@@ -604,38 +785,66 @@ export default function DcBugRun() {
     const shoot = keysRef.current.shoot;
     const shootPressed = keysRef.current.shootPressed;
 
-    const baseSpeed = 2 + (g.phase - 1) * 0.5;
-    g.scrollSpeed = Math.min(baseSpeed, 6);
+    // Scroll speed increases with phase
+    const baseSpeed = 2.5 + (g.phase - 1) * 0.4;
+    g.scrollSpeed = Math.min(baseSpeed, 7);
     g.camera += g.scrollSpeed;
     plane.x = 80 + g.camera;
 
-    if (up) plane.vy -= 0.4;
-    if (down) plane.vy += 0.4;
-    plane.vy *= 0.92;
+    // Plane movement
+    if (up) plane.vy -= 0.45;
+    if (down) plane.vy += 0.45;
+    plane.vy *= 0.93;
     plane.y += plane.vy;
 
-    const leftBound = getBankY(g.riverBanks, plane.x, true) + 15;
-    const rightBound = getBankY(g.riverBanks, plane.x, false) - 15;
+    // Keep plane in river bounds
+    const leftBound = getBankY(g.riverBanks, plane.x, true) + 18;
+    const rightBound = getBankY(g.riverBanks, plane.x, false) - 18;
     plane.y = Math.max(leftBound, Math.min(rightBound, plane.y));
 
-    if (plane.y <= leftBound + 5 || plane.y >= rightBound - 5) {
-      gameOver("crash");
-      return;
+    // Check collision with banks
+    if (plane.y <= leftBound + 3 || plane.y >= rightBound - 3) {
+      if (!g.invincible) {
+        gameOver("crash");
+        return;
+      }
     }
 
-    if (shoot && !shootPressed && g.frame % 8 === 0) {
+    // Invincibility timer
+    if (g.invincible) {
+      g.invTimer--;
+      if (g.invTimer <= 0) {
+        g.invincible = false;
+        setInvincible(false);
+      }
+    }
+
+    // Combo timer
+    if (g.combo.timer > 0) {
+      g.combo.timer--;
+      if (g.combo.timer <= 0) {
+        g.combo.count = 0;
+        setCombo(0);
+      }
+    }
+
+    // Shooting
+    const fireRate = g.powerUps.some(p => p.active && p.type === "rapid") ? 4 : 8;
+    if (shoot && !shootPressed && g.frame % fireRate === 0) {
       g.bullets.push({ x: plane.x + 20, y: plane.y, vx: BULLET_SPEED });
       keysRef.current.shootPressed = true;
     }
     if (!shoot) keysRef.current.shootPressed = false;
 
+    // Update bullets
     g.bullets = g.bullets.filter(b => {
       b.x += b.vx;
       return b.x < g.camera + CANVAS_W + 50;
     });
 
-    plane.fuel -= 0.08 * (1 + (g.phase - 1) * 0.1);
-    if (shoot) plane.fuel -= 0.02;
+    // Fuel consumption
+    plane.fuel -= 0.07 * (1 + (g.phase - 1) * 0.08);
+    if (shoot) plane.fuel -= 0.015;
     plane.fuel = Math.max(0, plane.fuel);
     setFuel(plane.fuel);
     if (plane.fuel <= 0) {
@@ -643,44 +852,62 @@ export default function DcBugRun() {
       return;
     }
 
+    // Update enemies
     g.enemies = g.enemies.filter(e => {
-      e.x -= g.scrollSpeed * 0.3;
-      if (e.type === "heli") e.y += Math.sin(g.frame * 0.05 + e.x) * 0.5;
+      e.x -= g.scrollSpeed * 0.35;
+      if (e.type === "heli") e.y += Math.sin(g.frame * 0.05 + e.x) * 0.8;
+      if (e.type === "jet") e.y += Math.sin(g.frame * 0.08 + e.x * 0.5) * 0.3;
       return e.x > g.camera - 100;
     });
 
-    const enemyChance = 0.008 + (g.phase - 1) * 0.003;
-    if (Math.random() < enemyChance && g.frame % 30 === 0) {
-      const types = ["ship", "heli", "jet"];
-      const type = types[Math.floor(Math.random() * Math.min(types.length, g.phase + 1))];
+    // Spawn enemies - MORE FREQUENT
+    const enemyChance = 0.015 + (g.phase - 1) * 0.004;
+    const maxEnemies = 3 + g.phase;
+    if (g.enemies.length < maxEnemies && Math.random() < enemyChance && g.frame % 20 === 0) {
+      const types = ["ship", "heli", "jet", "tanker"];
+      const availableTypes = types.slice(0, Math.min(types.length, g.phase + 1));
+      const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
       const left = getBankY(g.riverBanks, g.camera + CANVAS_W + 50, true);
       const right = getBankY(g.riverBanks, g.camera + CANVAS_W + 50, false);
       g.enemies.push({
         x: g.camera + CANVAS_W + 50,
-        y: left + 20 + Math.random() * (right - left - 40),
+        y: left + 25 + Math.random() * (right - left - 50),
         type,
-        hp: type === "jet" ? 2 : 1,
+        hp: type === "jet" ? 2 : type === "tanker" ? 3 : 1,
       });
     }
 
+    // Bullet-enemy collision
     g.bullets.forEach(b => {
       g.enemies.forEach(e => {
         if (e.hp <= 0) return;
         const dx = Math.abs(b.x - e.x);
         const dy = Math.abs(b.y - e.y);
-        if (dx < 15 && dy < 12) {
+        const hitDist = e.type === "tanker" ? 18 : 14;
+        if (dx < hitDist && dy < hitDist) {
           e.hp--;
           b.x = -9999;
           if (e.hp <= 0) {
-            g.score += e.type === "jet" ? 50 : e.type === "heli" ? 30 : 20;
-            for (let i = 0; i < 10; i++) {
+            const points = e.type === "tanker" ? 80 : e.type === "jet" ? 50 : e.type === "heli" ? 35 : 25;
+            g.score += points;
+            // Combo system
+            g.combo.count++;
+            g.combo.timer = 90;
+            setCombo(g.combo.count);
+            // Bonus for combos
+            if (g.combo.count >= 3) {
+              plane.fuel = Math.min(FUEL_MAX, plane.fuel + g.combo.count * 2);
+            }
+            // Explosion particles
+            const color = e.type === "tanker" ? "#a16207" : e.type === "jet" ? "#ef4444" : "#f59e0b";
+            for (let i = 0; i < 15; i++) {
               g.particles.push({
                 x: e.x, y: e.y,
-                vx: (Math.random() - 0.5) * 4,
-                vy: (Math.random() - 0.5) * 4,
+                vx: (Math.random() - 0.5) * 5,
+                vy: (Math.random() - 0.5) * 5,
                 r: 2 + Math.random() * 3,
-                color: e.type === "jet" ? "#ef4444" : "#f59e0b",
-                life: 20, maxLife: 20,
+                color,
+                life: 25, maxLife: 25,
               });
             }
           }
@@ -690,36 +917,44 @@ export default function DcBugRun() {
     g.bullets = g.bullets.filter(b => b.x > -999);
     g.enemies = g.enemies.filter(e => e.hp > 0);
 
-    g.enemies.forEach(e => {
-      const dx = Math.abs(e.x - plane.x);
-      const dy = Math.abs(e.y - plane.y);
-      if (dx < 20 && dy < 15) {
-        gameOver("enemy");
-      }
-    });
+    // Plane-enemy collision
+    if (!g.invincible) {
+      g.enemies.forEach(e => {
+        const dx = Math.abs(e.x - plane.x);
+        const dy = Math.abs(e.y - plane.y);
+        const hitDist = e.type === "tanker" ? 22 : 18;
+        if (dx < hitDist && dy < hitDist) {
+          gameOver("enemy");
+        }
+      });
+    }
 
+    // Fuel stations - MORE FREQUENT
     g.fuelStations = g.fuelStations.filter(fs => {
       fs.x -= g.scrollSpeed;
       const dx = Math.abs(fs.x - plane.x);
       const dy = Math.abs(fs.y - plane.y);
-      if (dx < 20 && dy < 20) {
-        plane.fuel = Math.min(FUEL_MAX, plane.fuel + 40);
-        for (let i = 0; i < 8; i++) {
+      if (dx < 22 && dy < 22) {
+        plane.fuel = Math.min(FUEL_MAX, plane.fuel + 50);
+        g.score += 10;
+        for (let i = 0; i < 12; i++) {
           g.particles.push({
             x: fs.x, y: fs.y,
-            vx: (Math.random() - 0.5) * 3,
-            vy: (Math.random() - 0.5) * 3,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4,
             r: 2 + Math.random() * 2,
             color: "#22c55e",
-            life: 15, maxLife: 15,
+            life: 20, maxLife: 20,
           });
         }
+        showQuote("⛽ Combustivel DC! +50%");
         return false;
       }
       return fs.x > g.camera - 100;
     });
 
-    if (Math.random() < 0.003 && g.frame % 60 === 0) {
+    // Spawn fuel stations - EVERY 300-500m
+    if (Math.random() < 0.008 && g.frame % 40 === 0) {
       const left = getBankY(g.riverBanks, g.camera + CANVAS_W + 100, true);
       const right = getBankY(g.riverBanks, g.camera + CANVAS_W + 100, false);
       g.fuelStations.push({
@@ -728,31 +963,130 @@ export default function DcBugRun() {
       });
     }
 
+    // Mines (red obstacles that drain fuel)
+    g.mines = g.mines.filter(m => {
+      m.x -= g.scrollSpeed;
+      const left = getBankY(g.riverBanks, m.x, true);
+      const right = getBankY(g.riverBanks, m.x, false);
+      m.y = left + (right - left) * (0.3 + Math.sin(g.frame * 0.02 + m.x) * 0.2);
+      const dx = Math.abs(m.x - plane.x);
+      const dy = Math.abs(m.y - plane.y);
+      if (dx < 18 && dy < 18 && !g.invincible) {
+        plane.fuel = Math.max(0, plane.fuel - 30);
+        for (let i = 0; i < 10; i++) {
+          g.particles.push({
+            x: m.x, y: m.y,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4,
+            r: 2 + Math.random() * 2,
+            color: "#ef4444",
+            life: 15, maxLife: 15,
+          });
+        }
+        showQuote("💥 Mina! -30% combustivel!");
+        return false;
+      }
+      return m.x > g.camera - 100;
+    });
+
+    // Spawn mines
+    const mineChance = 0.006 + (g.phase - 1) * 0.002;
+    if (Math.random() < mineChance && g.frame % 50 === 0) {
+      const left = getBankY(g.riverBanks, g.camera + CANVAS_W + 80, true);
+      const right = getBankY(g.riverBanks, g.camera + CANVAS_W + 80, false);
+      g.mines.push({
+        x: g.camera + CANVAS_W + 80,
+        y: left + (right - left) * 0.5,
+      });
+    }
+
+    // Power-ups
+    g.powerUps = g.powerUps.filter(pu => {
+      pu.x -= g.scrollSpeed;
+      const left = getBankY(g.riverBanks, pu.x, true);
+      const right = getBankY(g.riverBanks, pu.x, false);
+      const py = left + (right - left) * 0.5 + Math.sin(g.frame * 0.05 + pu.x) * 20;
+      const dx = Math.abs(pu.x - plane.x);
+      const dy = Math.abs(py - plane.y);
+      if (dx < 20 && dy < 20) {
+        if (pu.type === "shield") {
+          g.invincible = true;
+          g.invTimer = 300; // 5 seconds at 60fps
+          setInvincible(true);
+          showQuote("🛡️ Escudo ativado! 5s de invencibilidade!");
+        } else if (pu.type === "rapid") {
+          pu.active = true;
+          pu.timer = 300;
+          showQuote("⚡ Tiro rapido! 5s de cadencia dupla!");
+        } else if (pu.type === "nuke") {
+          // Destroy all enemies on screen
+          g.enemies.forEach(e => {
+            for (let i = 0; i < 10; i++) {
+              g.particles.push({
+                x: e.x, y: e.y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                r: 3 + Math.random() * 3,
+                color: "#a855f7",
+                life: 30, maxLife: 30,
+              });
+            }
+          });
+          g.score += g.enemies.length * 50;
+          g.enemies = [];
+          showQuote("💥 BOMBA! Todos inimigos destruidos!");
+        }
+        return false;
+      }
+      if (pu.active && pu.timer) {
+        pu.timer--;
+        if (pu.timer <= 0) pu.active = false;
+      }
+      return pu.x > g.camera - 100;
+    });
+
+    // Spawn power-ups
+    if (Math.random() < 0.002 && g.frame % 120 === 0) {
+      const types = ["shield", "rapid", "nuke"];
+      const type = types[Math.floor(Math.random() * types.length)];
+      const left = getBankY(g.riverBanks, g.camera + CANVAS_W + 120, true);
+      const right = getBankY(g.riverBanks, g.camera + CANVAS_W + 120, false);
+      g.powerUps.push({
+        x: g.camera + CANVAS_W + 120,
+        y: left + (right - left) * 0.5,
+        type,
+        active: false,
+        timer: 0,
+      });
+    }
+
+    // Bridges (phase transitions)
     g.bridges = g.bridges.filter(b => b.x > g.camera - 100);
     g.bridges.forEach(b => {
       if (!b.passed && plane.x > b.x + 20) {
         b.passed = true;
         g.phase++;
         setPhase(g.phase);
-        g.score += 100;
-        showQuote();
+        g.score += 150;
+        showQuote(`🌉 FASE ${g.phase}! Velocidade aumentada!`);
       }
     });
 
     if (g.camera + CANVAS_W > g.nextBridge - 200) {
       g.bridges.push({ x: g.nextBridge, phase: g.phase + 1, passed: false });
-      g.nextBridge += 800 + Math.random() * 400;
+      g.nextBridge += 600 + Math.random() * 300;
     }
 
+    // Generate river banks
     if (g.camera + CANVAS_W > g.riverBanks[g.riverBanks.length - 1]?.x - 100) {
       const lastX = g.riverBanks[g.riverBanks.length - 1].x;
       const newBanks = generateRiverBanks(lastX + 4, 200, g.phase);
       g.riverBanks = [...g.riverBanks.slice(-300), ...newBanks];
       newBanks.forEach((b, i) => {
-        if (i % 25 === 0) {
+        if (i % 20 === 0) {
           g.easterEggs.push({
             x: b.x,
-            text: CODE_EASTER_EGGS[Math.floor(Math.random() * CODE_EASTER_EGGS.length)],
+            text: CODE_EGGS[Math.floor(Math.random() * CODE_EGGS.length)],
           });
         }
       });
@@ -762,23 +1096,24 @@ export default function DcBugRun() {
 
     g.score = Math.floor(g.camera / 10);
     setScore(g.score);
-    if (g.score > 0 && g.score % 100 === 0 && g.frame % 10 === 0) showQuote();
 
-    const ghostBias = Math.min(g.frame * 0.015, 300);
-    const ghostOsc = Math.sin(g.frame * 0.012) * 120;
+    // Ghost plane
+    const ghostBias = Math.min(g.frame * 0.012, 350);
+    const ghostOsc = Math.sin(g.frame * 0.01) * 130;
     g.ghost.offset = ghostOsc + ghostBias;
     g.ghost.x = plane.x + g.ghost.offset;
     const ghostLeft = getBankY(g.riverBanks, g.ghost.x, true);
     const ghostRight = getBankY(g.riverBanks, g.ghost.x, false);
-    g.ghost.y = ghostLeft + (ghostRight - ghostLeft) * 0.5 + Math.sin(g.frame * 0.03) * 20;
+    g.ghost.y = ghostLeft + (ghostRight - ghostLeft) * 0.5 + Math.sin(g.frame * 0.025) * 25;
 
-    if (g.running && g.frame % 3 === 0) {
+    // Engine particles
+    if (g.running && g.frame % 2 === 0) {
       g.particles.push({
-        x: plane.x - 16,
-        y: plane.y + (Math.random() - 0.5) * 4,
-        vx: -2 - Math.random(),
-        vy: (Math.random() - 0.5) * 0.5,
-        r: 1.5 + Math.random(),
+        x: plane.x - 18,
+        y: plane.y + (Math.random() - 0.5) * 5,
+        vx: -2.5 - Math.random(),
+        vy: (Math.random() - 0.5) * 0.8,
+        r: 1.5 + Math.random() * 1.5,
         color: `rgba(251, 191, 36, ${0.4 + Math.random() * 0.4})`,
         life: 10, maxLife: 10,
       });
@@ -800,38 +1135,49 @@ export default function DcBugRun() {
     const g = gameRef.current;
     const banks = generateRiverBanks(0, 400, 1);
     g.riverBanks = banks;
-    g.plane = { x: 80, y: CANVAS_H / 2, vy: 0, fuel: FUEL_MAX, alive: true };
+    g.plane = { x: 80, y: CANVAS_H / 2, vy: 0, fuel: FUEL_MAX };
     g.camera = 0;
-    g.scrollSpeed = 2;
+    g.scrollSpeed = 2.5;
     g.frame = 0;
     g.score = 0;
     g.phase = 1;
-    g.nextBridge = 800;
+    g.nextBridge = 600;
     g.bullets = [];
     g.enemies = [];
     g.fuelStations = [];
+    g.mines = [];
+    g.powerUps = [];
     g.particles = [];
     g.bridges = [];
     g.easterEggs = [];
     g.ghost = { x: -100, y: CANVAS_H / 2, offset: 0 };
+    g.combo = { count: 0, timer: 0 };
+    g.invincible = false;
+    g.invTimer = 0;
     banks.forEach((b, i) => {
-      if (i % 25 === 0) {
+      if (i % 20 === 0) {
         g.easterEggs.push({
           x: b.x,
-          text: CODE_EASTER_EGGS[Math.floor(Math.random() * CODE_EASTER_EGGS.length)],
+          text: CODE_EGGS[Math.floor(Math.random() * CODE_EGGS.length)],
         });
       }
     });
+    // Initial fuel station
+    const left = getBankY(banks, 300, true);
+    const right = getBankY(banks, 300, false);
+    g.fuelStations.push({ x: 300, y: left + (right - left) * 0.5 });
     g.running = true;
     setScore(0);
     setFuel(FUEL_MAX);
     setPhase(1);
+    setCombo(0);
+    setInvincible(false);
     setGameState("playing");
     setQuoteVisible(false);
     setGhostGap(0);
-    setTimeout(() => showQuote(), 800);
+    setTimeout(() => showQuote("Boa sorte, piloto DC! ✈️"), 500);
     g.animId = requestAnimationFrame(loop);
-  }, [showQuote, loop, generateRiverBanks]);
+  }, [showQuote, loop, generateRiverBanks, getBankY]);
 
   const handleStart = useCallback(() => {
     if (gameState === "gameover" && playerName.trim()) {
@@ -873,9 +1219,9 @@ export default function DcBugRun() {
     const g = gameRef.current;
     const banks = generateRiverBanks(0, 400, 1);
     g.riverBanks = banks;
-    g.easterEggs = banks.filter((_, i) => i % 25 === 0).map(b => ({
+    g.easterEggs = banks.filter((_, i) => i % 20 === 0).map(b => ({
       x: b.x,
-      text: CODE_EASTER_EGGS[Math.floor(Math.random() * CODE_EASTER_EGGS.length)],
+      text: CODE_EGGS[Math.floor(Math.random() * CODE_EGGS.length)],
     }));
     drawScene(ctx, canvas);
   }, [drawScene, generateRiverBanks]);
@@ -1250,7 +1596,7 @@ export default function DcBugRun() {
           border-radius: 50%;
         }
         .legend-dot.fuel { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-        .legend-dot.enemy { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+        .legend-dot.mine { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
         .legend-icon {
           font-size: 11px;
         }
@@ -1295,14 +1641,14 @@ export default function DcBugRun() {
                   {gameState === "menu" ? (
                     <>Voe pelo rio, atire nos inimigos e colete combustivel!<br />
                     ⬆⬇ Sobe/Desce | ESPACO Atira<br />
-                    🟢 Posto DC = +combustivel | 🔴 Inimigos = evite ou destrua!<br />
-                    🌉 Pontes = troca de fase com easter eggs de codigo no rio!<br />
-                    👻 Fantasma DC compete com voce!<br />
-                    Use ⬆ Sobe | ⬇ Desce | ESPACO Atira</>
+                    🟢 Posto DC = +50% combustivel | 🔴 Minas = -30% combustivel<br />
+                    🛡️ Escudo | ⚡ Tiro rapido | 💥 Bomba<br />
+                    🌉 Pontes = troca de fase | 🔥 Combo x3+ = bonus combustivel<br />
+                    👻 Fantasma DC compete com voce!</>
                   ) : (
                     <>
                       Distancia: <strong>{score}m</strong> | Recorde: <strong>{highScore}m</strong><br />
-                      Fase alcancada: <strong>{phase}</strong><br />
+                      Fase alcancada: <strong>{phase}</strong> | Combo max: <strong>x{combo}</strong><br />
                       {score >= highScore && score > 0 ? <span className="riverride-newrec">🎉 Novo recorde!</span> : null}
                       <br />
                       <span style={{ color: "#fdba74" }}>👻 Fantasma DC venceu por {ghostGap}m!</span>
@@ -1328,7 +1674,7 @@ export default function DcBugRun() {
                 <button className="riverride-btn" onClick={handleStart}>
                   {gameState === "menu" ? "▶ Jogar" : "↻ Tentar de novo"}
                 </button>
-                <div className="riverride-hint">⬆ Sobe | ⬇ Desce | ESPACO Atira | 🟢 +combustivel | 🔴 Inimigos</div>
+                <div className="riverride-hint">⬆ Sobe | ⬇ Desce | ESPACO Atira | 🟢 +combustivel | 🔴 Minas</div>
               </div>
             )}
           </div>
@@ -1359,18 +1705,21 @@ export default function DcBugRun() {
           <div className="legend-row">
             <div className="legend-item">
               <div className="legend-dot fuel" />
-              <span>Posto DC = +combustivel</span>
+              <span>Posto DC = +50% combustivel</span>
             </div>
             <div className="legend-item">
-              <div className="legend-dot enemy" />
-              <span>Inimigos = pontos</span>
+              <div className="legend-dot mine" />
+              <span>Minas = -30% combustivel</span>
             </div>
             <div className="legend-item">
               <span className="legend-icon">🌉</span>
               <span>Pontes = nova fase</span>
             </div>
             <div className="legend-item">
-              <span>👻 Fantasma DC — rival</span>
+              <span>🛡️ ⚡ 💥 Power-ups</span>
+            </div>
+            <div className="legend-item">
+              <span>👻 Fantasma DC</span>
             </div>
           </div>
 
