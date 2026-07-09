@@ -66,6 +66,41 @@ const STACK = [
   { tech: "Vercel",    desc: "Deploy contínuo e rápido" },
 ];
 
+/* ─── Tilt Card (novo) ───
+   Envolve qualquer card e aplica um leve tilt 3D seguindo o mouse,
+   igual ao efeito de hover dos templates de Figma/landing pages. */
+function TiltCard({ className, children }) {
+  const ref = useRef(null);
+
+  const handleMove = (e) => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const rotateX = ((y - rect.height / 2) / rect.height) * -6;
+    const rotateY = ((x - rect.width / 2) / rect.width) * 6;
+    el.style.transform = `perspective(900px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`;
+  };
+
+  const handleLeave = () => {
+    const el = ref.current;
+    if (el) el.style.transform = "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0)";
+  };
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      onMouseMove={handleMove}
+      onMouseLeave={handleLeave}
+      style={{ transition: "transform 0.25s ease-out", willChange: "transform" }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* ─── Navbar ─── */
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -125,6 +160,7 @@ function Hero() {
   const leftRef   = useRef(null);
   const rightRef  = useRef(null);
   const canvasRef = useRef(null);
+  const heroRef   = useRef(null);
 
   /* Three.js background */
   useEffect(() => {
@@ -221,7 +257,7 @@ function Hero() {
     };
   }, []);
 
-  /* GSAP animations */
+  /* GSAP animations + parallax no scroll (novo) */
   useEffect(() => {
     const ctx = gsap.context(() => {
       gsap.from(leftRef.current.children, {
@@ -230,12 +266,36 @@ function Hero() {
       gsap.from(rightRef.current, {
         opacity: 0, x: 60, duration: 0.9, ease: "power3.out", delay: 0.5,
       });
+
+      // Parallax: dashboard desce mais devagar que o texto ao rolar
+      gsap.to(rightRef.current, {
+        yPercent: 12,
+        ease: "none",
+        scrollTrigger: {
+          trigger: heroRef.current,
+          start: "top top",
+          end: "bottom top",
+          scrub: true,
+        },
+      });
+
+      // Parallax: fundo de partículas se move um pouco no scroll
+      gsap.to(canvasRef.current, {
+        yPercent: -8,
+        ease: "none",
+        scrollTrigger: {
+          trigger: heroRef.current,
+          start: "top top",
+          end: "bottom top",
+          scrub: true,
+        },
+      });
     });
     return () => ctx.revert();
   }, []);
 
   return (
-    <section className="dc-hero" style={{ position: "relative" }}>
+    <section className="dc-hero" style={{ position: "relative" }} ref={heroRef}>
       <canvas
         ref={canvasRef}
         style={{
@@ -412,11 +472,11 @@ function Features() {
         <div className="row g-4">
           {FEATURES.map((f) => (
             <div className="col-md-6 col-lg-4" key={f.title}>
-              <div className="feat-card">
+              <TiltCard className="feat-card">
                 <div className="feat-icon"><i className={`bi ${f.icon}`}></i></div>
                 <h4>{f.title}</h4>
                 <p>{f.desc}</p>
-              </div>
+              </TiltCard>
             </div>
           ))}
         </div>
@@ -476,7 +536,7 @@ function Projects() {
         <div className="row g-4">
           {SYSTEMS.map((s) => (
             <div className="col-md-6 col-lg-4" key={s.title}>
-              <div className="sys-card">
+              <TiltCard className="sys-card">
                 <div className="sys-card-thumb">
                   <i className={`bi ${s.icon}`}></i>
                 </div>
@@ -493,7 +553,7 @@ function Projects() {
                     {s.linkLabel} <i className="bi bi-arrow-right"></i>
                   </a>
                 </div>
-              </div>
+              </TiltCard>
             </div>
           ))}
         </div>
