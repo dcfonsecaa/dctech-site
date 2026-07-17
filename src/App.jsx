@@ -49,10 +49,26 @@ const SYSTEMS = [
     link: "https://resolve-ai-mu.vercel.app/",
     linkLabel: "Ver projeto",
   },
+  {
+    icon: "bi-stars",
+    tag: "Beleza & Bem-estar",
+    title: "Site para Esteticista",
+    desc: "Site institucional moderno e responsivo para apresentar serviços estéticos, benefícios e facilitar o contato direto pelo WhatsApp.",
+    link: "https://site-esteticista.vercel.app/",
+    linkLabel: "Ver projeto",
+  },
+  {
+    icon: "bi-house-door-fill",
+    tag: "Mercado Imobiliário",
+    title: "Lucrelar",
+    desc: "Plataforma imobiliária com catálogo, filtros, páginas detalhadas de imóveis, captação de proprietários e área administrativa.",
+    link: "https://lucrelar-three.vercel.app/",
+    linkLabel: "Ver projeto",
+  },
 ];
 
 const STATS = [
-  { number: "4+",    label: "Projetos entregues" },
+  { number: "6+",    label: "Projetos entregues" },
   { number: "React", label: "Frontend" },
   { number: "Java",  label: "Backend" },
   { number: "24h",   label: "Tempo de resposta" },
@@ -353,7 +369,7 @@ function Hero() {
                   <span /><span /><span />
                 </div>
                 <div className="metric-row">
-                  <div className="metric-box"><small>Projetos</small><strong>4+</strong></div>
+                  <div className="metric-box"><small>Projetos</small><strong>6+</strong></div>
                   <div className="metric-box"><small>Ambiente</small><strong>Web</strong></div>
                   <div className="metric-box highlight"><small>Status</small><strong>Ativo</strong></div>
                 </div>
@@ -362,6 +378,8 @@ function Hero() {
                   { icon: "bi-robot",      name: "Claud.ia",         sub: "Assistente IA para devs" },
                   { icon: "bi-car-front",  name: "Clássicos Via 2R", sub: "Classificados automotivos" },
                   { icon: "bi-people",     name: "Resolve Aí",       sub: "Marketplace de serviços" },
+                  { icon: "bi-stars",      name: "Site Esteticista", sub: "Beleza e bem-estar" },
+                  { icon: "bi-house-door", name: "Lucrelar",         sub: "Plataforma imobiliária" },
                 ].map((s) => (
                   <div className="sys-item" key={s.name}>
                     <div className="sys-icon"><i className={`bi ${s.icon}`}></i></div>
