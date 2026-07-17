@@ -1188,7 +1188,12 @@ export default function DcBugRun() {
   }, [gameState, playerName, score, addToRanking, startGame]);
 
   useEffect(() => {
+    const gameKeys = new Set(["ArrowUp", "ArrowDown", "Space", "KeyW", "KeyS", "KeyX"]);
+
     const onDown = (e) => {
+      if (gameState === "playing" && gameKeys.has(e.code)) {
+        e.preventDefault();
+      }
       if (e.code === "ArrowUp" || e.code === "KeyW") keysRef.current.up = true;
       if (e.code === "ArrowDown" || e.code === "KeyS") keysRef.current.down = true;
       if (e.code === "Space" || e.code === "KeyX") {
@@ -1201,6 +1206,9 @@ export default function DcBugRun() {
       }
     };
     const onUp = (e) => {
+      if (gameState === "playing" && gameKeys.has(e.code)) {
+        e.preventDefault();
+      }
       if (e.code === "ArrowUp" || e.code === "KeyW") keysRef.current.up = false;
       if (e.code === "ArrowDown" || e.code === "KeyS") keysRef.current.down = false;
       if (e.code === "Space" || e.code === "KeyX") {
