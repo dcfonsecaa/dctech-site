@@ -198,9 +198,9 @@ function Hero() {
       const positions = new Float32Array(count * 3);
       const colors    = new Float32Array(count * 3);
 
-      const cA = new THREE.Color("#3b82f6");
-      const cB = new THREE.Color("#0057FF");
-      const cC = new THREE.Color("#60a5fa");
+      const cA = new THREE.Color("#cda24b");
+      const cB = new THREE.Color("#80bad6");
+      const cC = new THREE.Color("#f3f0e9");
 
       for (let i = 0; i < count; i++) {
         positions[i * 3]     = (Math.random() - 0.5) * 22;
@@ -218,7 +218,7 @@ function Hero() {
       points = new THREE.Points(geo, mat);
       scene.add(points);
 
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x0057FF, transparent: true, opacity: 0.06 });
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xcda24b, transparent: true, opacity: 0.07 });
       for (let i = 0; i < 25; i++) {
         const lg = new THREE.BufferGeometry();
         const x = (Math.random() - 0.5) * 20, y = (Math.random() - 0.5) * 20;
