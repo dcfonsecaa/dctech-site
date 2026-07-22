@@ -810,3 +810,95 @@ body { background: #f3f0e9; }
 .bugrun-footer a { color: #cda24b; }
 
 .footer-copy { border-color: rgba(205,162,75,.16); }
+
+/* Light hero with premium dark header */
+.dc-nav,
+.dc-nav.scrolled {
+  background: rgba(7, 20, 31, .97);
+  border-bottom: 1px solid rgba(205, 162, 75, .22);
+  box-shadow: 0 10px 32px rgba(7, 20, 31, .18);
+  backdrop-filter: blur(18px);
+}
+
+.dc-nav .nav-link {
+  color: #e9e4da !important;
+}
+
+.dc-nav .nav-link:hover { color: #cda24b !important; }
+
+.dc-hero {
+  background:
+    radial-gradient(circle at 84% 16%, rgba(128,186,214,.28), transparent 29rem),
+    radial-gradient(circle at 12% 80%, rgba(205,162,75,.16), transparent 25rem),
+    #f3f0e9;
+  color: #07141f;
+}
+
+.dc-hero::before {
+  background: radial-gradient(circle, rgba(255,255,255,.68), transparent 68%);
+}
+
+.dc-hero h1 {
+  color: #07141f;
+  text-shadow: none;
+}
+
+.dc-hero h1 .accent {
+  background: linear-gradient(90deg, #17364b, #a56d0a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero-eyebrow {
+  background: rgba(23,54,75,.07);
+  border-color: rgba(23,54,75,.2);
+  color: #17364b;
+}
+
+.hero-desc,
+.trust-item { color: #5f6b73; }
+
+.trust-item i { color: #a56d0a; }
+
+.btn-cta-ghost {
+  color: #17364b;
+  border-color: rgba(23,54,75,.25);
+}
+
+.btn-cta-ghost:hover {
+  color: #07141f;
+  border-color: #a56d0a;
+}
+
+.dashboard-panel {
+  background: rgba(255,255,255,.74);
+  border-color: #d8d3c9;
+  box-shadow: 0 28px 70px rgba(7,20,31,.12);
+}
+
+.panel-header-text strong { color: #07141f; }
+.panel-header-text small { color: #a56d0a; }
+
+.badge-online {
+  background: #17364b;
+  color: #f3f0e9;
+}
+
+.stats-bar {
+  background: #e9e4da;
+  border-top-color: #d8d3c9;
+  border-bottom-color: #d8d3c9;
+}
+
+.stat-item { color: #07141f; }
+.stat-number { color: #a56d0a; }
+.stat-label { color: #5f6b73; }
+
+@media (max-width: 991.98px) {
+  .dc-nav .navbar-collapse {
+    margin-top: .75rem;
+    padding: .8rem;
+    background: rgba(7, 20, 31, .98);
+    border: 1px solid rgba(205, 162, 75, .24);
+  }
+}
